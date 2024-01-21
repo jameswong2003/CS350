@@ -1,6 +1,10 @@
 # CS 350 Starter Code Pack
 
+This repository will be updated periodically to release new assignments.
+
 ## Project 1 : Weather Stations
+
+## Guidelines
 
 ### Submission
 
