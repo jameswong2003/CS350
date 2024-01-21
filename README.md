@@ -4,6 +4,8 @@ This repository will be updated periodically to release new assignments.
 
 ## Project 1 : Weather Stations
 
+To be released.
+
 ## Guidelines
 
 ### Submission
