@@ -34,9 +34,9 @@ type weatherCallReceipt struct {
 	batch int
 }
 
-var AveragePeriod = 0.5
-var QuitEarly = false
-var K = 100
+var AveragePeriod float64
+var QuitEarly bool
+var K int
 
 // A factory function that returns a closure for obtaining weather data
 //
