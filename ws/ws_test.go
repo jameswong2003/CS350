@@ -18,6 +18,9 @@ func init() {
 	rpc.HandleHTTP()
 }
 
+var listenerPointers = make([]*net.Listener, 0)
+var socketNames = make([]string, 0)
+
 // Test the channel-based approach for aggregating weather data.
 func TestChannelAggregator(t *testing.T) {
 	runTests(t, channelAggregator)
@@ -44,11 +47,9 @@ func createWeatherStations(t *testing.T, k int, averagePeriod float64, testName 
 		}
 		go http.Serve(l, nil)
 
-		// Register a cleanup task for the current station.
-		t.Cleanup(func() {
-			l.Close()
-			os.Remove(sockAddr)
-		})
+		// Register a cleanup element for the current station.
+		listenerPointers = append(listenerPointers, &l)
+		socketNames = append(socketNames, sockAddr)
 	}
 }
 
@@ -213,5 +214,21 @@ func testAll(
 				t.Fatal("ERROR: expected", expectedCount, "batches, but got", batchCount)
 			}
 		}
+	}
+}
+
+// Cleanup method to run last.
+func TestCleanup(t *testing.T) {
+	// Wait 1 second to wait for all the aggregators to block/exit.
+	time.Sleep(time.Second)
+
+	// Call close on all the listeners.
+	for _, listener := range listenerPointers {
+		(*listener).Close()
+	}
+
+	// Delete all the sockets.
+	for _, socket := range socketNames {
+		os.Remove(socket)
 	}
 }

@@ -51,7 +51,7 @@ Your code must terminate immediately upon receiving a signal on the `quit` chann
    1. Solution with channels goes in `channelAggregator` in `channel_aggregator.go`.
    2. Solution with mutexes goes in `mutexAggregator` in `mutex_aggregator.go`.
 3. Run the tests in `ws_test.go`:
-   1. `go test -race`
+   1. `go test -v -race`
    2. Your IDE should also be able to run the tests and show you the results in a GUI. (Note that if you're using VSCode, you will likely need to edit the default go test timeout to be more than 30s.)
    3. For Windows users, you will need WSL set up to run the tests.
 4. Upload the `channel_aggregator.go` and `mutex_aggregator.go` files to Gradescope. Do not change the file names, or the autograder may not recognize them.
