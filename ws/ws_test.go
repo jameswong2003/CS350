@@ -199,12 +199,12 @@ func testAll(
 			now = time.Now()
 
 		case <-quitTimer.C:
-			quit <- struct{}{}
+			go func() { quit <- struct{}{} }()
 
 			select {
 			case <-out:
 				t.Fatal("ERROR: received answer after quit signal was sent")
-			case <-time.After(time.Second * time.Duration(AveragePeriod) * 2):
+			case <-time.After(time.Duration(AveragePeriod*1000*2) * time.Millisecond):
 				return
 			}
 
@@ -217,17 +217,18 @@ func testAll(
 	}
 }
 
-// Cleanup method to run last.
+// cleanup method to run last
+
 func TestCleanup(t *testing.T) {
-	// Wait 1 second to wait for all the aggregators to block/exit.
+	// wait 1 second to wait for all the aggregators to block/exit
 	time.Sleep(time.Second)
 
-	// Call close on all the listeners.
+	// call close on all the listeners
 	for _, listener := range listenerPointers {
 		(*listener).Close()
 	}
 
-	// Delete all the sockets.
+	// delete all the sockets
 	for _, socket := range socketNames {
 		os.Remove(socket)
 	}
