@@ -1,5 +1,9 @@
 package main
 
+import (
+	"time"
+)
+
 // Channel-based aggregator that reports the global average temperature periodically
 //
 // Report the averagage temperature across all `k` weatherstations every `averagePeriod`
@@ -14,5 +18,11 @@ func channelAggregator(
 	out chan WeatherReport,
 	quit chan struct{},
 ) {
+	current_batch := 0
+	var total_temperature float64
 	// Your code here.
+	for i := 0; i < k; i++ {
+		total_temperature += getWeatherData(i, current_batch).Value
+		time.Now()
+	}
 }
