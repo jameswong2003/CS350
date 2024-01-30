@@ -19,7 +19,7 @@ func channelAggregator(
 	out chan WeatherReport,
 	quit chan struct{},
 ) {
-	ticker := time.NewTicker(time.Second * time.Duration(averagePeriod))
+	ticker := time.NewTicker(time.Duration(averagePeriod*1000) * time.Millisecond)
 	select {
 	case <-quit:
 		return
@@ -44,6 +44,7 @@ func channelAggregator(
 				responseCount += 1
 			}
 		}
+		close(responses)
 
 		if responseCount > 0 {
 			averageTemperature := totalTemperature / float64(responseCount)
@@ -53,5 +54,8 @@ func channelAggregator(
 			report := WeatherReport{Value: math.NaN(), Batch: currentBatch}
 			out <- report
 		}
+
+		currentBatch += 1
 	}
+
 }
