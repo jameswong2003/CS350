@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"time"
 )
 
@@ -20,42 +19,42 @@ func channelAggregator(
 	quit chan struct{},
 ) {
 	ticker := time.NewTicker(time.Duration(averagePeriod*1000) * time.Millisecond)
-	select {
-	case <-quit:
-		return
-	case <-ticker.C:
-		currentBatch := 0
-		totalTemperature := 0.0
-		responseCount := 0
+	currentBatch := 0
+	totalTemperature := 0.0
+	responseCount := 0
+	responses := make(chan WeatherReport)
 
-		responses := make(chan WeatherReport)
+	for i := 0; i < k; i++ {
+		go func(stationID int, batch int) {
+			response := getWeatherData(stationID, batch)
+			responses <- response
+		}(i, currentBatch)
+	}
 
-		for i := 0; i < k; i++ {
-			go func(stationID int, batch int) {
-				response := getWeatherData(stationID, batch)
-				responses <- response
-			}(i, currentBatch)
-		}
-
-		for i := 0; i < k; i++ {
-			response := <-responses
+	for {
+		select {
+		case <-quit:
+			return
+		case response := <-responses:
 			if response.Batch == currentBatch {
 				totalTemperature += response.Value
 				responseCount += 1
 			}
-		}
-		close(responses)
-
-		if responseCount > 0 {
+		case <-ticker.C:
 			averageTemperature := totalTemperature / float64(responseCount)
-			report := WeatherReport{Value: averageTemperature, Id: -1, Batch: currentBatch}
+			report := WeatherReport{Value: averageTemperature, Batch: currentBatch}
 			out <- report
-		} else {
-			report := WeatherReport{Value: math.NaN(), Batch: currentBatch}
-			out <- report
-		}
+			totalTemperature = 0.0
+			responseCount = 0
+			currentBatch += 1
 
-		currentBatch += 1
+			for i := 0; i < k; i++ {
+				go func(stationID int, batch int) {
+					response := getWeatherData(stationID, batch)
+					responses <- response
+				}(i, currentBatch)
+			}
+		}
 	}
 
 }
