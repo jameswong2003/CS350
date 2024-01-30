@@ -1,8 +1,6 @@
 package main
 
-import (
-	"time"
-)
+import "time"
 
 // Channel-based aggregator that reports the global average temperature periodically
 //
@@ -18,11 +16,42 @@ func channelAggregator(
 	out chan WeatherReport,
 	quit chan struct{},
 ) {
-	current_batch := 0
-	var total_temperature float64
+	currentBatch := 0
 	// Your code here.
-	for i := 0; i < k; i++ {
-		total_temperature += getWeatherData(i, current_batch).Value
-		time.Now()
+	for {
+		currentBatch += 1
+		responseCount := 0
+		totalTemperature := 0.0
+
+		// Make response channel for response to report to
+		responses := make(chan WeatherReport, k)
+
+		for i := 0; i < k; i++ {
+			// Go Routine for each weather station
+			go func(stationID int, batch int) {
+				response := getWeatherData(stationID, batch)
+				responses <- response
+			}(i, currentBatch)
+		}
+
+		// Collect Responses
+		for i := 0; i < k; i++ {
+			response := <-responses
+			if response.Batch == currentBatch {
+				totalTemperature += response.Value
+				responseCount += 1
+			}
+		}
+
+		close(responses)
+
+		// Calculate response and send it to the out chan
+		if responseCount > 0 {
+			averageTemperature := totalTemperature / float64(responseCount)
+			report := WeatherReport{Value: averageTemperature, Id: -1, Batch: currentBatch}
+			out <- report
+		}
+		// Delay before the next average period
+		time.Sleep(time.Duration(averagePeriod) * time.Second)
 	}
 }
