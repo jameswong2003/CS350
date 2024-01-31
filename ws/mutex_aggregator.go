@@ -50,13 +50,15 @@ func mutexAggregator(
 		case <-quit:
 			return
 		case <-ticker.C:
-			c.mu.Lock()
 			averageTemperature := c.totalTemperature / float64(c.responseCount)
 			report := WeatherReport{Value: averageTemperature, Batch: currentBatch}
 			out <- report
+
+			c.mu.Lock()
 			c.totalTemperature = 0
 			c.responseCount = 0
 			c.mu.Unlock()
+
 			currentBatch += 1
 
 			for i := 0; i < k; i++ {
