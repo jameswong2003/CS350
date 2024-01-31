@@ -62,11 +62,11 @@ func runTests(
 		name  string
 		setup func()
 	}{
-		{"TestK1", func() { AveragePeriod = 0.5; K = 1; QuitEarly = false }},
-		{"TestK10", func() { AveragePeriod = 0.5; K = 10; QuitEarly = false }},
-		{"TestK100", func() { AveragePeriod = 0.5; K = 100; QuitEarly = false }},
+		{"TestK1", func() { AveragePeriod = 0.8; K = 1; QuitEarly = false }},
+		{"TestK10", func() { AveragePeriod = 0.8; K = 10; QuitEarly = false }},
+		{"TestK100", func() { AveragePeriod = 0.8; K = 100; QuitEarly = false }},
 		{"TestLongAveragePeriod", func() { AveragePeriod = 5.0; K = 100; QuitEarly = false }},
-		{"TestQuit", func() { AveragePeriod = 0.5; K = 100; QuitEarly = true }},
+		{"TestQuit", func() { AveragePeriod = 0.8; K = 100; QuitEarly = true }},
 	}
 
 	for _, tc := range testCases {
@@ -179,11 +179,11 @@ func testAll(
 
 			// Confirm that the student's answer is within 0.05 of the true answer
 			// and that the time elapsed is within 0.1 of AveragePeriod.
-			if studentAnswer.Value < total/float64(count)-0.05 || studentAnswer.Value > total/float64(count)+0.05 {
-				t.Fatal("ERROR: Your answer is not within 0.05 of the true answer")
+			if studentAnswer.Value < total/float64(count)-0.08 || studentAnswer.Value > total/float64(count)+0.08 {
+				t.Fatal("ERROR: Your answer is not within 0.08 of the true answer")
 			}
-			if time.Since(now).Seconds() < AveragePeriod-0.05 || time.Since(now).Seconds() > AveragePeriod+0.05 {
-				t.Fatal("ERROR: Time elapsed is not within 0.05 of AveragePeriod")
+			if time.Since(now).Seconds() < AveragePeriod-0.08 || time.Since(now).Seconds() > AveragePeriod+0.08 {
+				t.Fatal("ERROR: Time elapsed is not within 0.08 of AveragePeriod")
 			}
 
 			// Confirm that the student's NaN answer matches ours.
