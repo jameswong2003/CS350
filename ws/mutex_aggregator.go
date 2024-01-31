@@ -18,13 +18,16 @@ type Container struct {
 	mu               sync.Mutex
 	totalTemperature float64
 	responseCount    int
+	currentBatch     int
 }
 
-func (c *Container) record(temperature float64) {
+func (c *Container) record(temperature float64, batch int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.totalTemperature += temperature
-	c.responseCount += 1
+	if batch == c.currentBatch {
+		c.totalTemperature += temperature
+		c.responseCount += 1
+	}
 }
 
 func mutexAggregator(
@@ -35,15 +38,14 @@ func mutexAggregator(
 	quit chan struct{},
 ) {
 	ticker := time.NewTicker(time.Duration(averagePeriod*1000) * time.Millisecond)
-	currentBatch := 0
 
-	c := Container{totalTemperature: 0.0, responseCount: 0}
+	c := Container{totalTemperature: 0.0, responseCount: 0, currentBatch: 0}
 
 	for i := 0; i < k; i++ {
 		go func(stationID int, batch int) {
 			response := getWeatherData(stationID, batch)
-			c.record(response.Value)
-		}(i, currentBatch)
+			c.record(response.Value, batch)
+		}(i, c.currentBatch)
 	}
 
 	for {
@@ -53,21 +55,20 @@ func mutexAggregator(
 		case <-ticker.C:
 			c.mu.Lock()
 			averageTemperature := c.totalTemperature / float64(c.responseCount)
-			report := WeatherReport{Value: averageTemperature, Batch: currentBatch}
+			report := WeatherReport{Value: averageTemperature, Batch: c.currentBatch}
 			fmt.Println(c.totalTemperature, c.responseCount)
 			out <- report
 
 			c.totalTemperature = 0
 			c.responseCount = 0
+			c.currentBatch += 1
 			c.mu.Unlock()
-
-			currentBatch += 1
 
 			for i := 0; i < k; i++ {
 				go func(stationID int, batch int) {
 					response := getWeatherData(stationID, batch)
-					c.record(response.Value)
-				}(i, currentBatch)
+					c.record(response.Value, batch)
+				}(i, c.currentBatch)
 			}
 
 		}
