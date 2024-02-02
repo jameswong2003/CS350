@@ -16,7 +16,7 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 // Bank represents a simple banking system
 type Bank struct {
-	bankLock *sync.RWMutex
+	bankLock *sync.Mutex
 	accounts map[int]*Account
 }
 
@@ -27,7 +27,7 @@ type Account struct {
 
 // initializes a new bank
 func BankInit() *Bank {
-	b := Bank{&sync.RWMutex{}, make(map[int]*Account)}
+	b := Bank{&sync.Mutex{}, make(map[int]*Account)}
 	return &b
 }
 
@@ -57,9 +57,9 @@ func (b *Bank) CreateAccount(accountID int) {
 
 // deposit a given amount to the specified account
 func (b *Bank) Deposit(accountID, amount int) {
-	b.bankLock.RLock()
+	b.bankLock.Lock()
 	account := b.accounts[accountID]
-	b.bankLock.RUnlock()
+	b.bankLock.Unlock()
 
 	account.lock.Lock()
 	DPrintf("[ACQUIRED LOCK][DEPOSIT] for account %d\n", accountID)
@@ -74,9 +74,9 @@ func (b *Bank) Deposit(accountID, amount int) {
 
 // withdraw the given amount from the given account id
 func (b *Bank) Withdraw(accountID, amount int) bool {
-	b.bankLock.RLock()
+	b.bankLock.Lock()
 	account := b.accounts[accountID]
-	b.bankLock.RUnlock()
+	b.bankLock.Unlock()
 
 	account.lock.Lock()
 	DPrintf("[ACQUIRED LOCK][WITHDRAW] for account %d\n", accountID)
@@ -102,10 +102,10 @@ func (b *Bank) Withdraw(accountID, amount int) bool {
 
 // transfer amount from sender to receiver
 func (b *Bank) Transfer(sender int, receiver int, amount int, allowOverdraw bool) bool {
-	b.bankLock.RLock()
+	b.bankLock.Lock()
 	senderAccount := b.accounts[sender]
 	receiverAccount := b.accounts[receiver]
-	b.bankLock.RUnlock()
+	b.bankLock.Unlock()
 
 	senderAccount.lock.Lock()
 	receiverAccount.lock.Lock()
@@ -124,9 +124,9 @@ func (b *Bank) Transfer(sender int, receiver int, amount int, allowOverdraw bool
 }
 
 func (b *Bank) DepositAndCompare(accountId int, amount int, compareThreshold int) bool {
-	b.bankLock.RLock()
+	b.bankLock.Lock()
 	account := b.accounts[accountId]
-	b.bankLock.RUnlock()
+	b.bankLock.Unlock()
 
 	account.lock.Lock()
 	defer account.lock.Unlock()
