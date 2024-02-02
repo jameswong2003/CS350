@@ -45,6 +45,9 @@ func (b *Bank) logInsufficientBalanceEvent(accountID int) {
 
 func (b *Bank) sendEmailTo(accountID int) {
 	// Dummy function
+	// hello
+	// marker
+	// eraser
 }
 
 // creates a new account with the given account ID
