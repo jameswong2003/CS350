@@ -53,31 +53,44 @@ func (b *Bank) sendEmailTo(accountID int) {
 // creates a new account with the given account ID
 func (b *Bank) CreateAccount(accountID int) {
 	// your code here
+	b.bankLock.Lock()
+	defer b.bankLock.Unlock()
+
+	// Check if account exists
+	if _, exist := b.accounts[accountID]; exist {
+		return
+	}
+
+	newAccount := Account{0, &sync.Mutex{}}
+	b.accounts[accountID] = &newAccount
+
 }
 
 // deposit a given amount to the specified account
 func (b *Bank) Deposit(accountID, amount int) {
 	b.bankLock.Lock()
-	account := b.accounts[accountID]
-	b.bankLock.Unlock()
+	defer b.bankLock.Unlock()
 
+	account := b.accounts[accountID]
 	account.lock.Lock()
+	defer account.lock.Unlock()
+
 	DPrintf("[ACQUIRED LOCK][DEPOSIT] for account %d\n", accountID)
 
 	newBalance := account.balance + amount
 	account.balance = newBalance
 	DPrintf("Deposited %d into account %d. New balance: %d\n", amount, accountID, newBalance)
 
-	b.accounts[accountID].lock.Unlock()
+	b.accounts[accountID] = account
 	DPrintf("[RELEASED LOCK][DEPOSIT] for account %d\n", accountID)
 }
 
 // withdraw the given amount from the given account id
 func (b *Bank) Withdraw(accountID, amount int) bool {
 	b.bankLock.Lock()
-	account := b.accounts[accountID]
-	b.bankLock.Unlock()
+	defer b.bankLock.Unlock()
 
+	account := b.accounts[accountID]
 	account.lock.Lock()
 	DPrintf("[ACQUIRED LOCK][WITHDRAW] for account %d\n", accountID)
 
