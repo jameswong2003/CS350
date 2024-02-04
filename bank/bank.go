@@ -69,19 +69,17 @@ func (b *Bank) CreateAccount(accountID int) {
 // deposit a given amount to the specified account
 func (b *Bank) Deposit(accountID, amount int) {
 	b.bankLock.Lock()
-	defer b.bankLock.Unlock()
-
 	account := b.accounts[accountID]
-	account.lock.Lock()
-	defer account.lock.Unlock()
+	b.bankLock.Unlock()
 
+	account.lock.Lock()
 	DPrintf("[ACQUIRED LOCK][DEPOSIT] for account %d\n", accountID)
 
 	newBalance := account.balance + amount
 	account.balance = newBalance
 	DPrintf("Deposited %d into account %d. New balance: %d\n", amount, accountID, newBalance)
 
-	b.accounts[accountID] = account
+	b.accounts[accountID].lock.Unlock()
 	DPrintf("[RELEASED LOCK][DEPOSIT] for account %d\n", accountID)
 }
 
@@ -92,13 +90,13 @@ func (b *Bank) Withdraw(accountID, amount int) bool {
 
 	account := b.accounts[accountID]
 	account.lock.Lock()
+	defer account.lock.Unlock()
 	DPrintf("[ACQUIRED LOCK][WITHDRAW] for account %d\n", accountID)
 
 	if account.balance >= amount {
 		newBalance := account.balance - amount
 		account.balance = newBalance
 		DPrintf("Withdrawn %d from account %d. New balance: %d\n", amount, accountID, newBalance)
-		account.lock.Unlock()
 		DPrintf("[RELEASED LOCK][WITHDRAW] for account %d\n", accountID)
 		return true
 	} else {
@@ -116,12 +114,15 @@ func (b *Bank) Withdraw(accountID, amount int) bool {
 // transfer amount from sender to receiver
 func (b *Bank) Transfer(sender int, receiver int, amount int, allowOverdraw bool) bool {
 	b.bankLock.Lock()
+	defer b.bankLock.Unlock()
+
 	senderAccount := b.accounts[sender]
 	receiverAccount := b.accounts[receiver]
-	b.bankLock.Unlock()
 
 	senderAccount.lock.Lock()
+	defer senderAccount.lock.Unlock()
 	receiverAccount.lock.Lock()
+	defer receiverAccount.lock.Unlock()
 
 	// if the sender has enough balance,
 	// or if overdraws are allowed
@@ -131,16 +132,14 @@ func (b *Bank) Transfer(sender int, receiver int, amount int, allowOverdraw bool
 		receiverAccount.balance += amount
 		success = true
 	}
-	senderAccount.lock.Unlock()
-	receiverAccount.lock.Unlock()
 	return success
 }
 
 func (b *Bank) DepositAndCompare(accountId int, amount int, compareThreshold int) bool {
 	b.bankLock.Lock()
-	account := b.accounts[accountId]
-	b.bankLock.Unlock()
+	defer b.bankLock.Unlock()
 
+	account := b.accounts[accountId]
 	account.lock.Lock()
 	defer account.lock.Unlock()
 
