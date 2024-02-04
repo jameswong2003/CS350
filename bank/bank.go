@@ -136,13 +136,6 @@ func (b *Bank) Transfer(sender int, receiver int, amount int, allowOverdraw bool
 }
 
 func (b *Bank) DepositAndCompare(accountId int, amount int, compareThreshold int) bool {
-	b.bankLock.Lock()
-	defer b.bankLock.Unlock()
-
-	account := b.accounts[accountId]
-	account.lock.Lock()
-	defer account.lock.Unlock()
-
 	var compareResult bool
 	b.Deposit(accountId, amount)
 	compareResult = b.GetBalance(accountId) >= compareThreshold
