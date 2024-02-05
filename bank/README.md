@@ -47,6 +47,8 @@ You need to ensure that the following methods are implemented correctly:
 
 Your code’s execution should be **deterministic.** The tester will make a huge number of concurrent calls to your code, and running the exact same input multiple times should not affect the final state of the Bank or any of the Accounts within it.
 
+Your code should also be able to handle errors such as handling account ids that dont exist or are being duplicated by throwing an error. In such cases, your code needs to log appropriate error messages.
+
 ### **DPrintf**
 
 We also provide you with a function called DPrintf(). It is similar to Printf, but you can set
