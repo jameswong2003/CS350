@@ -58,7 +58,7 @@ func (b *Bank) CreateAccount(accountID int) {
 
 	// Check if account exists
 	if _, exist := b.accounts[accountID]; exist {
-		return
+		panic("Account already exists")
 	}
 
 	newAccount := Account{0, &sync.Mutex{}}
