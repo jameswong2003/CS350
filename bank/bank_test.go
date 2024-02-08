@@ -20,7 +20,7 @@ func CreateAccounts(accountCount int, bank *Bank) {
 	wg.Wait()
 }
 
-func TestCreateAccountBasic_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestCreateAccountBasic(t *testing.T) {
 	accountCount := 1
 	bank := BankInit()
 	CreateAccounts(accountCount, bank)
@@ -29,7 +29,7 @@ func TestCreateAccountBasic_Fo3U9ni4FFmORvXj(t *testing.T) {
 	}
 }
 
-func TestCreateAccountMany_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestCreateAccountMany(t *testing.T) {
 	accountCount := 100
 	bank := BankInit()
 	CreateAccounts(accountCount, bank)
@@ -38,7 +38,7 @@ func TestCreateAccountMany_Fo3U9ni4FFmORvXj(t *testing.T) {
 	}
 }
 
-func TestManyDepositsAndWithdraws_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestManyDepositsAndWithdraws(t *testing.T) {
 	timeoutTime := 10
 	accountCount := 100
 	totalOperations := 10000
@@ -119,7 +119,7 @@ func TestManyDepositsAndWithdraws_Fo3U9ni4FFmORvXj(t *testing.T) {
 	}
 }
 
-func TestFewTransfers_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestFewTransfers(t *testing.T) {
 	timeoutTime := 2
 	// 2 accounts 40 transfers each
 	transferCount := 40
@@ -165,7 +165,7 @@ func TestFewTransfers_Fo3U9ni4FFmORvXj(t *testing.T) {
 	}
 }
 
-func TestManyTransfers_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestManyTransfers(t *testing.T) {
 	timeoutTime := 4
 	// 2 accounts 40 transfers each
 	transferCount := 400
@@ -237,7 +237,7 @@ func TestManyTransfers_Fo3U9ni4FFmORvXj(t *testing.T) {
 	}
 }
 
-func TestDepositAndCompare_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestDepositAndCompare(t *testing.T) {
 	timeoutTime := 8
 	accountCount := 10
 	totalOperations := 100
@@ -303,7 +303,7 @@ func TestDepositAndCompare_Fo3U9ni4FFmORvXj(t *testing.T) {
 
 }
 
-func TestHiddenBonus_Fo3U9ni4FFmORvXj(t *testing.T) {
+func TestHiddenBonus(t *testing.T) {
 	timeoutTime := 32
 	accountCount := 40
 	totalOperations := 8000
