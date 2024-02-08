@@ -25,7 +25,7 @@ func TestCreateAccountBasic(t *testing.T) {
 	bank := BankInit()
 	CreateAccounts(accountCount, bank)
 	if len(bank.accounts) != accountCount {
-		t.Fatalf("Expected %d account, got %d\n", accountCount, len(bank.accounts))
+		t.Errorf("Expected %d account, got %d\n", accountCount, len(bank.accounts))
 	}
 }
 
@@ -34,23 +34,22 @@ func TestCreateAccountMany(t *testing.T) {
 	bank := BankInit()
 	CreateAccounts(accountCount, bank)
 	if len(bank.accounts) != accountCount {
-		t.Fatalf("Expected %d account, got %d\n", accountCount, len(bank.accounts))
+		t.Errorf("Expected %d account, got %d\n", accountCount, len(bank.accounts))
 	}
 }
 
 func TestManyDepositsAndWithdraws(t *testing.T) {
+	timeoutTime := 10
 	accountCount := 100
 	totalOperations := 10000
 	bank := BankInit()
 	CreateAccounts(accountCount, bank)
-	timeoutTime := 10
 	timeout := time.After(time.Duration(timeoutTime) * time.Second)
 	done := make(chan bool)
 	balancesMutex := &sync.Mutex{}
 	balancesForVerification := make([]int, accountCount)
 	go func() {
 		var wg sync.WaitGroup
-
 		for i := 0; i < totalOperations; i++ {
 			for accountId := 0; accountId < accountCount; accountId++ {
 				// Simultaneous deposit and withdrawals
@@ -103,7 +102,7 @@ func TestManyDepositsAndWithdraws(t *testing.T) {
 
 	select {
 	case <-timeout:
-		t.Fatal("Test didn't finish in time (10 seconds)")
+		t.Error("Test didn't finish in time (10 seconds)")
 	case <-done:
 		balancesMutex.Lock()
 		// fmt.Println("Final Balances")
@@ -112,7 +111,7 @@ func TestManyDepositsAndWithdraws(t *testing.T) {
 			// fmt.Printf("%d  ---  %d\n", balancesForVerification[i], bank.GetBalance(i))
 			// fmt.Println(balancesForVerification)
 			if balancesForVerification[i] != bank.GetBalance(i) {
-				t.Fatal("Final balances do not match!\n")
+				t.Error("Final balances do not match!\n")
 			}
 		}
 		balancesMutex.Unlock()
@@ -121,7 +120,7 @@ func TestManyDepositsAndWithdraws(t *testing.T) {
 }
 
 func TestFewTransfers(t *testing.T) {
-	timeoutTime := 10
+	timeoutTime := 2
 	// 2 accounts 40 transfers each
 	transferCount := 40
 	bank := BankInit()
@@ -153,12 +152,12 @@ func TestFewTransfers(t *testing.T) {
 	}()
 	select {
 	case <-timeout:
-		t.Fatal("TestFewTransfers failed to finish in time")
+		t.Error("TestFewTransfers failed to finish in time")
 	case <-done:
 		if bank.GetBalance(0) == 100-transferCount && bank.GetBalance(1) == 100+transferCount {
 			// fmt.Println("TestFewTransfers finished.")
 		} else {
-			t.Fatalf("TestFewTransfers failed due to incorrect balances, got %d %d \n",
+			t.Errorf("TestFewTransfers failed due to incorrect balances, got %d %d \n",
 				bank.GetBalance(0), bank.GetBalance(1))
 		}
 		// fmt.Printf("Final balances, got %d %d \n",
@@ -167,12 +166,12 @@ func TestFewTransfers(t *testing.T) {
 }
 
 func TestManyTransfers(t *testing.T) {
-	timeoutTime := 10
+	timeoutTime := 4
 	// 2 accounts 40 transfers each
-	transferCount := 40
+	transferCount := 400
 	transferAmount := 2
 	bank := BankInit()
-	accountCount := 2
+	accountCount := 8
 
 	balancesMutex := &sync.Mutex{}
 	balancesForVerification := make([]int, accountCount)
@@ -205,13 +204,11 @@ func TestManyTransfers(t *testing.T) {
 					go func(s int, r int, amount int) {
 						success := bank.Transfer(s, r, 2, false)
 						if success {
-							// wg.Add(1)
 							func() {
 								balancesMutex.Lock()
 								balancesForVerification[s] -= transferAmount
 								balancesForVerification[r] += transferAmount
 								balancesMutex.Unlock()
-								// wg.Done()
 							}()
 						}
 						wg.Done()
@@ -227,13 +224,13 @@ func TestManyTransfers(t *testing.T) {
 	}()
 	select {
 	case <-timeout:
-		t.Fatal("TestManyTransfer failed to finish in time")
+		t.Error("TestManyTransfer failed to finish in time")
 	case <-done:
 		balancesMutex.Lock()
 		for i := 0; i < accountCount; i++ {
 			// fmt.Printf("%d  ---  %d\n", balancesForVerification[i], bank.GetBalance(i))
 			if balancesForVerification[i] != bank.GetBalance(i) {
-				t.Fatal("Final balances do not match!\n")
+				t.Error("Final balances do not match!\n")
 			}
 		}
 		balancesMutex.Unlock()
@@ -241,11 +238,11 @@ func TestManyTransfers(t *testing.T) {
 }
 
 func TestDepositAndCompare(t *testing.T) {
+	timeoutTime := 8
 	accountCount := 10
 	totalOperations := 100
 	bank := BankInit()
 	CreateAccounts(accountCount, bank)
-	timeoutTime := 10
 	timeout := time.After(time.Duration(timeoutTime) * time.Second)
 	resultCh := make(map[int]chan bool)
 	countTrue := make(map[int]int)
@@ -284,7 +281,7 @@ func TestDepositAndCompare(t *testing.T) {
 
 	select {
 	case <-timeout:
-		t.Fatal("Test didn't finish in time")
+		t.Error("Test didn't finish in time")
 	case <-done:
 		resultCheck := true
 		for i := 0; i < accountCount; i++ {
@@ -296,12 +293,108 @@ func TestDepositAndCompare(t *testing.T) {
 		if resultCheck {
 			// fmt.Println("Test finished")
 		} else {
-			t.Fatal("Compare result incorrect!", countTrue, countFalse)
+			t.Error("Compare result incorrect!", countTrue, countFalse)
 		}
 	// t.Logf("Test finished under %d seconds\n", timeoutTime)
 	// TODO: Fix this?
 	case <-err:
-		t.Fatal("Compare result incorrect! ", err)
+		t.Error("Compare result incorrect! ", err)
 	}
 
+}
+
+func TestHiddenBonus(t *testing.T) {
+	timeoutTime := 32
+	accountCount := 40
+	totalOperations := 8000
+	bank := BankInit()
+	rand.Seed(time.Now().UnixNano())
+	CreateAccounts(accountCount, bank)
+	timeout := time.After(time.Duration(timeoutTime) * time.Second)
+	done := make(chan bool)
+	balancesMutex := &sync.Mutex{}
+	balancesForVerification := make([]int, accountCount)
+	go func() {
+		var wg sync.WaitGroup
+		for i := 0; i < totalOperations; i++ {
+			for accountId := 0; accountId < accountCount; accountId++ {
+				randOperation := rand.Intn(42)
+				if randOperation == 0 {
+					availableBalance := bank.GetBalance(accountId)
+					withdrawAmount := availableBalance / 2
+					if rand.Intn(100) < 20 {
+						withdrawAmount = withdrawAmount * 4
+					}
+					wg.Add(1)
+					go func(accountId int) {
+						success := bank.Withdraw(accountId, withdrawAmount)
+						if success {
+							balancesMutex.Lock()
+							balancesForVerification[accountId] -= withdrawAmount
+							balancesMutex.Unlock()
+						}
+						wg.Done()
+					}(accountId)
+				} else if randOperation == 1 {
+					depositAmount := 100
+					wg.Add(1)
+					go func(accountId int) {
+						bank.Deposit(accountId, depositAmount)
+						balancesMutex.Lock()
+						balancesForVerification[accountId] += depositAmount
+						balancesMutex.Unlock()
+						wg.Done()
+					}(accountId)
+				} else if randOperation == 2 {
+					sender := accountId
+					receiver := rand.Intn(accountCount)
+					for receiver == sender {
+						receiver = rand.Intn(accountCount)
+					}
+					amount := 10
+					wg.Add(1)
+					go func(s int, r int, amount int) {
+						success := bank.Transfer(s, r, amount, false)
+						if success {
+							func() {
+								balancesMutex.Lock()
+								balancesForVerification[s] -= amount
+								balancesForVerification[r] += amount
+								balancesMutex.Unlock()
+							}()
+						}
+						wg.Done()
+					}(sender, receiver, amount)
+				} else {
+					wg.Add(20)
+					for j := i*20 + accountCount; j < (i+1)*20+accountCount; j++ {
+						go func(accountId int) {
+							bank.CreateAccount(accountId)
+							wg.Done()
+						}(accountCount + rand.Intn(totalOperations))
+					}
+				}
+			}
+		}
+		bank.CreateAccount(rand.Intn(accountCount))
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("Creating duplicate account didn't panic!")
+			}
+		}()
+		wg.Wait()
+		done <- true
+	}()
+	select {
+	case <-timeout:
+		t.Error("Test didn't finish in time (10 seconds)")
+	case <-done:
+		balancesMutex.Lock()
+		for i := 0; i < accountCount; i++ {
+			if balancesForVerification[i] != bank.GetBalance(i) {
+				t.Error("Final balances do not match!\n")
+			}
+		}
+		balancesMutex.Unlock()
+	}
 }
