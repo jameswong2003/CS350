@@ -304,7 +304,7 @@ func TestDepositAndCompare(t *testing.T) {
 }
 
 func TestHiddenBonus(t *testing.T) {
-	timeoutTime := 32
+	timeoutTime := 8
 	accountCount := 40
 	totalOperations := 8000
 	bank := BankInit()
@@ -317,8 +317,17 @@ func TestHiddenBonus(t *testing.T) {
 	go func() {
 		var wg sync.WaitGroup
 		for i := 0; i < totalOperations; i++ {
+			if i%100 == 40 && i > accountCount {
+				for j := i; j < i+40; j++ {
+					wg.Add(1)
+					go func(accountId int) {
+						bank.CreateAccount(accountId)
+						wg.Done()
+					}(j)
+				}
+			}
 			for accountId := 0; accountId < accountCount; accountId++ {
-				randOperation := rand.Intn(42)
+				randOperation := rand.Intn(42) % 3
 				if randOperation == 0 {
 					availableBalance := bank.GetBalance(accountId)
 					withdrawAmount := availableBalance / 2
@@ -345,7 +354,7 @@ func TestHiddenBonus(t *testing.T) {
 						balancesMutex.Unlock()
 						wg.Done()
 					}(accountId)
-				} else if randOperation == 2 {
+				} else {
 					sender := accountId
 					receiver := rand.Intn(accountCount)
 					for receiver == sender {
@@ -356,34 +365,24 @@ func TestHiddenBonus(t *testing.T) {
 					go func(s int, r int, amount int) {
 						success := bank.Transfer(s, r, amount, false)
 						if success {
-							func() {
-								balancesMutex.Lock()
-								balancesForVerification[s] -= amount
-								balancesForVerification[r] += amount
-								balancesMutex.Unlock()
-							}()
+							balancesMutex.Lock()
+							balancesForVerification[s] -= amount
+							balancesForVerification[r] += amount
+							balancesMutex.Unlock()
 						}
 						wg.Done()
 					}(sender, receiver, amount)
-				} else {
-					wg.Add(20)
-					for j := i*20 + accountCount; j < (i+1)*20+accountCount; j++ {
-						go func(accountId int) {
-							bank.CreateAccount(accountId)
-							wg.Done()
-						}(accountCount + rand.Intn(totalOperations))
-					}
 				}
 			}
 		}
-		bank.CreateAccount(rand.Intn(accountCount))
+		wg.Wait()
+		done <- true
 		defer func() {
 			if r := recover(); r == nil {
 				t.Errorf("Creating duplicate account didn't panic!")
 			}
 		}()
-		wg.Wait()
-		done <- true
+		bank.CreateAccount(rand.Intn(accountCount))
 	}()
 	select {
 	case <-timeout:
