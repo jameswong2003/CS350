@@ -1,4 +1,4 @@
-# Project 1: MapReduce
+# Project 3: MapReduce
 
 ## Introduction
 
