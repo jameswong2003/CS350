@@ -6,6 +6,14 @@ This repository will be updated periodically to release new assignments.
 
 Please navigate to [ws](/ws/) directory for detailed instructions regarding Weather Stations assignment.
 
+## Project 2 : Bank Transactions
+
+Please navigate to `bank` directory for detailed instructions regarding Bank Transactions assignment.
+
+## Project 3 : MapReduce
+
+Please navigate to `mr` directory for detailed instructions regarding MapReduce assignment.
+
 ## Guidelines
 
 ### Submission
