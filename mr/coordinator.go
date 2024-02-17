@@ -51,13 +51,40 @@ func (c *Coordinator) GetTask(req *TaskRequest, res *TaskResponse) error {
 			res.ErrCode = ErrSuccess
 			go checkTask(c, t.TaskId, t.TaskType)
 			return nil
-		} else if t.status == StatusSent {
+		} else if t.Status == StatusSent {
 			hasWaiting = true
 		}
 	}
 
 	if hasWaiting {
+		res.ErrCode = ErrWait
+		return nil
+	}
 
+	// finish all map tasks during mapperiod or reduce tasks during reducePeriod
+	switch c.status {
+	case MapPeriod:
+		c.status = ReducePeriod
+		res.ErrCode = ErrAllDone
+	case ReducePeriod:
+		c.status = AllDone
+		res.ErrCode = ErrAllDone
+	}
+	return nil
+}
+
+// Check a task is finished or not after it is given 10 seconds
+func checkTask(c *Coordinator, taskId int32, taskType int32) {
+	time.Sleep(WorkerDieTime)
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.taskQueue[taskId].Status != taskType {
+		return
+	}
+
+	if c.taskQueue[taskId].Status == StatusSent {
+		c.taskQueue[taskId].Status = StatusReady
 	}
 }
 
