@@ -70,6 +70,6 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 		return true
 	}
 
-	fmt.Println(err)
+	fmt.Println("Unable to Call", rpcname, "- Got error:", err)
 	return false
 }
