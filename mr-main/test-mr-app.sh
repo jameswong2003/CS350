@@ -14,6 +14,9 @@ rm -f mr-*
 echo "Building MR apps..."
 
 (cd ../mrapps && go build $RACE -buildmode=plugin credit.go) || exit 1
+(cd .. && go build $RACE mrcoordinator.go) || exit 1
+(cd .. && go build $RACE mrworker.go) || exit 1
+(cd .. && go build $RACE mrsequential.go) || exit 1
 
 echo "Starting credit score test."
 
