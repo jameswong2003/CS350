@@ -21,13 +21,34 @@ type ExampleReply struct {
 }
 
 // Add your RPC definitions here.
-const ()
+
+// Error Codes for RPC Calls
+const (
+	ErrorSuccess = iota
+	ErrorWait
+	ErrorAllDone
+)
+
+// Task Status
+const (
+	StatusReady = iota
+	StatusSent
+	StatusDone
+)
 
 type Task struct {
 	TaskId   int32
 	TaskType int32
 	Content  string
 	Status   int32
+}
+
+type TaskRequest struct {
+}
+
+type TaskResponse struct {
+	ErrorCode int32
+	Task      Task
 }
 
 // Cook up a unique-ish UNIX-domain socket name

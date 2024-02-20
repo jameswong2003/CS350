@@ -25,7 +25,7 @@ type Coordinator struct {
 
 // Your code here -- RPC handlers for the worker to call.
 
-func (c *Coordinator) GetTask() error {
+func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -37,8 +37,30 @@ func (c *Coordinator) GetTask() error {
 	for i := 0; i < n; i++ {
 		currentTask := c.TaskQueue[c.CurrentId]
 		c.CurrentId = (c.CurrentId + 1) % n
-		if currentTask.Status == 
+
+		if currentTask.Status == StatusReady {
+			currentTask.Status = StatusSent
+
+			resp.Task = *currentTask
+			resp.ErrorCode = ErrorSuccess
+
+			return nil
+		} else if currentTask.Status == StatusSent {
+			resp.ErrorCode = ErrorWait
+			return nil
+		}
 	}
+
+	// If all tasks are Done
+	switch c.status {
+	case Mapping:
+		c.status = Reducing
+		return nil
+	case Reducing:
+		c.status = Completed
+		return nil
+	}
+	return nil
 }
 
 // an example RPC handler.
