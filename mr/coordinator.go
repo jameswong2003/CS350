@@ -6,14 +6,40 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"sync"
+)
+
+const (
+	Mapping = iota
+	Reducing
+	Completed
 )
 
 type Coordinator struct {
 	// Your definitions here.
-
+	mu        sync.Mutex
+	TaskQueue []*Task // Array of all tasks given to coordinator
+	CurrentId int     // Current Free task
+	status    int
 }
 
 // Your code here -- RPC handlers for the worker to call.
+
+func (c *Coordinator) GetTask() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.status == Completed {
+		return nil
+	}
+
+	n := len(c.TaskQueue)
+	for i := 0; i < n; i++ {
+		currentTask := c.TaskQueue[c.CurrentId]
+		c.CurrentId = (c.CurrentId + 1) % n
+		if currentTask.Status == 
+	}
+}
 
 // an example RPC handler.
 // the RPC argument and reply types are defined in rpc.go.
@@ -36,7 +62,9 @@ func (c *Coordinator) Done() bool {
 // mr-main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	c := Coordinator{}
+	c := Coordinator{
+		status: Mapping,
+	}
 
 	// Your code here.
 

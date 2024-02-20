@@ -21,6 +21,7 @@ type ExampleReply struct {
 }
 
 // Add your RPC definitions here.
+const ()
 
 type Task struct {
 	TaskId   int32
