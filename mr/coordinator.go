@@ -29,6 +29,7 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// All the tasks are completed
 	if c.status == Completed {
 		return nil
 	}
@@ -76,6 +77,12 @@ func (c *Coordinator) Done() bool {
 	ret := false
 
 	// Your code here.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.status == Completed {
+		ret = true
+	}
 
 	return ret
 }
