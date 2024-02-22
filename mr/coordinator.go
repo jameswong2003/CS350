@@ -20,6 +20,7 @@ type Coordinator struct {
 	mu        sync.Mutex
 	TaskQueue []*Task // Array of all tasks given to coordinator
 	CurrentId int     // Current Free task
+	nReduce   int32
 	status    int
 }
 
@@ -92,13 +93,30 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
-		status: Mapping,
+		TaskQueue: make([]*Task, 0),
+		CurrentId: 0,
+		status:    Mapping,
+		nReduce:   int32(nReduce),
 	}
 
 	// Your code here.
-
+	// Load Map Tasks
+	importMapTasks(&c, files)
 	c.server()
 	return &c
+}
+
+func importMapTasks(c *Coordinator, files []string) {
+	n := len(files)
+
+	for i := 0; i < n; i++ {
+		c.TaskQueue = append(c.TaskQueue, &Task{
+			TaskId:   int32(i),
+			TaskType: TaskMap,
+			Content:  files[i],
+			Status:   StatusReady,
+		})
+	}
 }
 
 // start a thread that listens for RPCs from worker.go

@@ -36,6 +36,12 @@ const (
 	StatusDone
 )
 
+// Task Types
+const (
+	TaskMap = iota
+	TaskReduce
+)
+
 type Task struct {
 	TaskId   int32
 	TaskType int32
