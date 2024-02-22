@@ -26,7 +26,20 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
+	for {
+		req := TaskRequest{}
+		res := TaskResponse{}
 
+		call("Coordinator.GetTasK", req, res)
+		switch res.ErrorCode {
+		case ErrorWait:
+			continue
+		case ErrorSuccess:
+			continue
+		case ErrorAllDone:
+			break
+		}
+	}
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
 
