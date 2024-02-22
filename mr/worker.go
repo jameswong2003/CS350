@@ -30,15 +30,11 @@ func Worker(mapf func(string, string) []KeyValue,
 		req := TaskRequest{}
 		res := TaskResponse{}
 
-		call("Coordinator.GetTasK", req, res)
-		switch res.ErrorCode {
-		case ErrorWait:
-			continue
-		case ErrorSuccess:
-			continue
-		case ErrorAllDone:
+		if !call("Coordinator.GetTask", &req, &res) {
+			fmt.Print("Call failed")
 			break
 		}
+
 	}
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
