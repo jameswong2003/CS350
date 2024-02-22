@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -57,6 +58,7 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 	switch c.status {
 	case Mapping:
 		c.status = Reducing
+		importReduceTasks(c)
 		return nil
 	case Reducing:
 		c.status = Completed
@@ -107,6 +109,8 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 }
 
 func importMapTasks(c *Coordinator, files []string) {
+	c.TaskQueue = make([]*Task, 0)
+	c.CurrentId = 0
 	n := len(files)
 
 	for i := 0; i < n; i++ {
@@ -114,6 +118,20 @@ func importMapTasks(c *Coordinator, files []string) {
 			TaskId:   int32(i),
 			TaskType: TaskMap,
 			Content:  files[i],
+			Status:   StatusReady,
+		})
+	}
+}
+
+func importReduceTasks(c *Coordinator) {
+	c.TaskQueue = make([]*Task, 0)
+	c.CurrentId = 0
+
+	for i := 0; i < int(c.nReduce); i++ {
+		c.TaskQueue = append(c.TaskQueue, &Task{
+			TaskId:   int32(i),
+			TaskType: TaskReduce,
+			Content:  fmt.Sprint(c.nReduce),
 			Status:   StatusReady,
 		})
 	}
