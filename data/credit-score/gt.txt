@@ -1,4 +1,4 @@
-Equifax: 648
-Experian: 671
-TransUnion: 659
-Yellow Banana: 677
+Equifax 648
+Experian 671
+TransUnion 659
+Yellow Banana 677
