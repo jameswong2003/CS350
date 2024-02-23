@@ -83,6 +83,13 @@ func checkTask(taskId int32, taskType int32, c *Coordinator) {
 	}
 }
 
+func (c *Coordinator) Report(args *ReportRequest, reply *ReportResponse) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.TaskQueue[args.TaskId].Status = StatusDone
+	return nil
+}
+
 // an example RPC handler.
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
