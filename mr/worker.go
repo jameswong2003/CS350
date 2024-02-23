@@ -86,6 +86,18 @@ func StartMapping(t Task, mapf func(string, string) []KeyValue) {
 	os.Rename(tmpfile.Name(), oname)
 }
 
+func StartReducing(t Task, reducef func(string, []string) string) {
+	var kva []KeyValue
+	files, err := ioutil.ReadDir(".")
+	if err != nil {
+		log.Fatalf("No files exist in current Director", err)
+	}
+
+	for _, file := range files {
+
+	}
+}
+
 // uncomment to send the Example RPC to the coordinator.
 // CallExample()
 // example function to show how to make an RPC call to the coordinator.
