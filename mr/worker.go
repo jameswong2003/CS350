@@ -1,10 +1,14 @@
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"io/ioutil"
 	"log"
 	"net/rpc"
+	"os"
+	"strconv"
 )
 
 // Map functions return a slice of KeyValue.
@@ -33,14 +37,57 @@ func Worker(mapf func(string, string) []KeyValue,
 		if !call("Coordinator.GetTask", &req, &res) {
 			fmt.Print("Call failed")
 			break
+		} else {
+			switch res.ErrorCode {
+			case ErrorWait:
+				continue
+			case ErrorSuccess:
+				switch res.Task.TaskType {
+				case TaskMap:
+					StartMapping(res.Task, mapf)
+				case TaskReduce:
+					StartReducing(res.Task, reducef)
+				}
+			case ErrorAllDone:
+				break
+			}
 		}
-
 	}
-	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
-
 }
 
+// Store intermediate key value pairs {"key", "1"} in temp files labled: "mrmapped-*""
+func StartMapping(t Task, mapf func(string, string) []KeyValue) {
+	intermediate := []KeyValue{}
+	fileName := t.Content
+	file, err := os.Open(fileName)
+	defer file.Close()
+
+	if err != nil {
+		log.Fatalf("cannot open %v", fileName)
+	}
+	fileContent, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatalf("cannot open %v", fileName)
+	}
+
+	kva := mapf(fileName, string(fileContent))
+	oname := "mr-out-" + strconv.Itoa(int(t.TaskId))
+	tmpfile, err := ioutil.TempFile(".", "temp_"+oname)
+
+	enc := json.NewEncoder(tmpfile)
+	for _, kv := range kva {
+		err := enc.Encode(&kv)
+		if err != nil {
+			log.Fatalf("Error encoding KV to temp file", err)
+		}
+	}
+
+	tmpfile.Close()
+	os.Rename(tmpfile.Name(), oname)
+}
+
+// uncomment to send the Example RPC to the coordinator.
+// CallExample()
 // example function to show how to make an RPC call to the coordinator.
 // the RPC argument and reply types are defined in rpc.go.
 func CallExample() {

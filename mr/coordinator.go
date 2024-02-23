@@ -8,7 +8,10 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
+
+const idleTimeAllowed = time.Second * 10
 
 const (
 	Mapping = iota
@@ -46,7 +49,7 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 
 			resp.Task = *currentTask
 			resp.ErrorCode = ErrorSuccess
-
+			go checkTask(currentTask.TaskId, currentTask.TaskType, c)
 			return nil
 		} else if currentTask.Status == StatusSent {
 			resp.ErrorCode = ErrorWait
@@ -65,6 +68,19 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 		return nil
 	}
 	return nil
+}
+
+func checkTask(taskId int32, taskType int32, c *Coordinator) {
+	c.mu.Lock()
+	c.mu.Unlock()
+
+	time.Sleep(idleTimeAllowed)
+	if c.TaskQueue[taskId].TaskType != taskType {
+		return
+	}
+	if c.TaskQueue[taskId].Status == StatusSent {
+		c.TaskQueue[taskId].Status = StatusReady
+	}
 }
 
 // an example RPC handler.
