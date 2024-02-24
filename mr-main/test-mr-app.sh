@@ -25,6 +25,8 @@ rm -f mr-*
 timeout -k 2s 180s ../mrcoordinator ../../data/credit-score/*.csv &
 pid=$!
 
+sleep 1
+
 timeout -k 2s 180s ../mrworker ../mrapps/credit.so &
 timeout -k 2s 180s ../mrworker ../mrapps/credit.so
 
