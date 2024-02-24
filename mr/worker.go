@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"time"
 )
 
 // Map functions return a slice of KeyValue.
@@ -49,6 +50,7 @@ func Worker(mapf func(string, string) []KeyValue,
 		} else {
 			switch res.ErrorCode {
 			case ErrorWait:
+				time.Sleep(1 * time.Second)
 				continue
 			case ErrorSuccess:
 				switch res.Task.TaskType {
@@ -66,10 +68,8 @@ func Worker(mapf func(string, string) []KeyValue,
 
 // Store intermediate key value pairs {"key", "1"} in temp files labled: "mrmapped-*""
 func StartMapping(t Task, mapf func(string, string) []KeyValue) {
-	intermediate := []KeyValue{}
 	fileName := t.Content
 	file, err := os.Open(fileName)
-	defer file.Close()
 
 	if err != nil {
 		log.Fatalf("cannot open %v", fileName)
@@ -78,20 +78,22 @@ func StartMapping(t Task, mapf func(string, string) []KeyValue) {
 	if err != nil {
 		log.Fatalf("cannot open %v", fileName)
 	}
+	file.Close()
 
 	kva := mapf(fileName, string(fileContent))
-	oname := "mr-map-" + strconv.Itoa(int(t.TaskId))
-	tmpfile, err := ioutil.TempFile(".", "temp_"+oname)
-	defer tmpfile.Close()
+	oname := "mr-out-" + strconv.Itoa(int(t.TaskId))
+	tmpfile, err := ioutil.TempFile(".", "temp-"+oname)
+	if err != nil {
+		log.Fatalf("no temp file exist %v", err)
+	}
 
 	enc := json.NewEncoder(tmpfile)
 	for _, kv := range kva {
-		err := enc.Encode(&kv)
-		if err != nil {
-			log.Fatalf("Error encoding KV to temp file", err)
+		if err := enc.Encode(&kv); err != nil {
+			log.Fatalf("[DoMap]encode save json err=%v\n", err)
 		}
 	}
-
+	tmpfile.Close()
 	os.Rename(tmpfile.Name(), oname)
 	ReportToCoordinator(t.TaskId, t.TaskType)
 }
@@ -100,18 +102,17 @@ func StartReducing(t Task, reducef func(string, []string) string) {
 	var kva []KeyValue
 	files, err := ioutil.ReadDir(".")
 	if err != nil {
-		log.Fatalf("No files exist in current Director", err)
+		log.Fatalf("No files exist in current Director %v", err)
 	}
 
 	for _, file := range files {
-		matched, _ := regexp.Match(`^mr-map-*`, []byte(file.Name()))
+		matched, _ := regexp.Match(`^mr-out-*`, []byte(file.Name()))
 		if !matched {
 			continue
 		}
 
 		fileName := file.Name()
 		file, err := os.Open(fileName)
-		defer file.Close()
 
 		if err != nil {
 			log.Fatalf("cannot open %v", fileName)
@@ -131,8 +132,8 @@ func StartReducing(t Task, reducef func(string, []string) string) {
 	}
 
 	sort.Sort(ByKey(kva))
-	oname := "mr-map-" + strconv.Itoa(int(t.TaskId))
-	tmpfile, err := ioutil.TempFile(".", "temp_"+oname)
+	oname := "mr-out-" + strconv.Itoa(int(t.TaskId))
+	tmpfile, err := ioutil.TempFile(".", "temp-"+oname)
 
 	i := 0
 	for i < len(kva) {

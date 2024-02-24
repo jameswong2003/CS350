@@ -36,6 +36,7 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 
 	// All the tasks are completed
 	if c.status == Completed {
+		resp.ErrorCode = ErrorAllDone
 		return nil
 	}
 
@@ -62,19 +63,21 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 	case Mapping:
 		c.status = Reducing
 		importReduceTasks(c)
+		resp.ErrorCode = ErrorWait
 		return nil
 	case Reducing:
 		c.status = Completed
+		resp.ErrorCode = ErrorAllDone
 		return nil
 	}
 	return nil
 }
 
 func checkTask(taskId int32, taskType int32, c *Coordinator) {
-	c.mu.Lock()
-	c.mu.Unlock()
-
 	time.Sleep(idleTimeAllowed)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.TaskQueue[taskId].TaskType != taskType {
 		return
 	}
