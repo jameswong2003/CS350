@@ -40,6 +40,7 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 		return nil
 	}
 
+	taskNotCompleted := false
 	n := len(c.TaskQueue)
 	for i := 0; i < n; i++ {
 		currentTask := c.TaskQueue[c.CurrentId]
@@ -53,9 +54,14 @@ func (c *Coordinator) GetTask(req *TaskRequest, resp *TaskResponse) error {
 			go checkTask(currentTask.TaskId, currentTask.TaskType, c)
 			return nil
 		} else if currentTask.Status == StatusSent {
-			resp.ErrorCode = ErrorWait
-			return nil
+			taskNotCompleted = true
 		}
+	}
+
+	// If some tasks are still not completed
+	if taskNotCompleted {
+		resp.ErrorCode = ErrorWait
+		return nil
 	}
 
 	// If all tasks are Done
