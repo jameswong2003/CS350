@@ -81,7 +81,7 @@ func StartMapping(t Task, mapf func(string, string) []KeyValue) {
 	file.Close()
 
 	kva := mapf(fileName, string(fileContent))
-	oname := "mr-out-" + strconv.Itoa(int(t.TaskId))
+	oname := "mr-map-" + strconv.Itoa(int(t.TaskId))
 	tmpfile, err := ioutil.TempFile(".", "temp-"+oname)
 	if err != nil {
 		log.Fatalf("no temp file exist %v", err)
@@ -105,9 +105,11 @@ func StartReducing(t Task, reducef func(string, []string) string) {
 		log.Fatalf("No files exist in current Director %v", err)
 	}
 
+	// Compile the regular expression pattern for better performance
+	pattern := regexp.MustCompile(`^mr-map-*`)
+
 	for _, file := range files {
-		matched, _ := regexp.Match(`^mr-out-*`, []byte(file.Name()))
-		if !matched {
+		if !pattern.Match([]byte(file.Name())) {
 			continue
 		}
 
@@ -141,9 +143,9 @@ func StartReducing(t Task, reducef func(string, []string) string) {
 		for j < len(kva) && kva[j].Key == kva[i].Key {
 			j++
 		}
-		values := []string{}
+		values := make([]string, j-i)
 		for k := i; k < j; k++ {
-			values = append(values, kva[k].Value)
+			values[k-i] = kva[k].Value
 		}
 		output := reducef(kva[i].Key, values)
 
