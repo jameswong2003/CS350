@@ -7,6 +7,9 @@ package main
 
 import (
 	"cs350/mr"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 // The map function is called once for each file of input. The first
@@ -16,6 +19,21 @@ import (
 // of key/value pairs.
 func Map(filename string, contents string) []mr.KeyValue {
 	// your inplementation here
+	lines := strings.Split(contents, "\n")
+
+	kva := []mr.KeyValue{}
+	for _, line := range lines {
+		data := strings.Split(line, ",")
+		agency := data[1]
+		year, _ := strconv.Atoi(data[2])
+		creditScore, _ := strconv.Atoi(data[3])
+
+		if year == 2023 && creditScore > 400 {
+			fmt.Println(data)
+			kv := mr.KeyValue{agency, "1"}
+			kva = append(kva, kv)
+		}
+	}
 	return nil
 }
 
@@ -24,5 +42,5 @@ func Map(filename string, contents string) []mr.KeyValue {
 // any map task.
 func Reduce(key string, values []string) string {
 	// your inplementation here
-	return ""
+	return strconv.Itoa(len(values))
 }
