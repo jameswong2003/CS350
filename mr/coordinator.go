@@ -127,8 +127,10 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
-		status:  Mapping,
-		nReduce: int32(nReduce),
+		status:    Mapping,
+		nReduce:   int32(nReduce),
+		TaskQueue: make([]*Task, 0),
+		CurrentId: 0,
 	}
 
 	// Your code here.

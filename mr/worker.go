@@ -66,7 +66,7 @@ func Worker(mapf func(string, string) []KeyValue,
 	}
 }
 
-// Store intermediate key value pairs {"key", "1"} in temp files labled: "mrmapped-*""
+// Store intermediate key value pairs {"key", "1"} in temp files labled: "mr-map-*""
 func StartMapping(t Task, mapf func(string, string) []KeyValue) {
 	fileName := t.Content
 	file, err := os.Open(fileName)
