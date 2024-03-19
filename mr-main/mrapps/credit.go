@@ -22,7 +22,7 @@ func Map(filename string, contents string) []mr.KeyValue {
 
 	kva := []mr.KeyValue{}
 	for _, line := range lines {
-		data := strings.Split(line, ",")
+		data := strings.Split(strings.TrimSpace(line), ",")
 		if len(data) != 4 {
 			continue
 		}
