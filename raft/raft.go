@@ -54,13 +54,18 @@ type Raft struct {
 
 	state int32
 
-	log         []interface{}
+	log         []LogEntry
 	currentTerm int
 	votedFor    int
 	commitIndex int
 	lastApplied int
 	nextIndex   int
 	matchIndex  int
+}
+
+type LogEntry struct {
+	Term int
+	CMD  interface{}
 }
 
 // Return currentTerm and whether this server
@@ -143,9 +148,22 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 
 	if args.Term > rf.currentTerm {
+		rf.convertTo(Follower)
+		rf.currentTerm = args.Term
+	}
+
+	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
+		lastLogIndex := len(rf.log) - 1
+
+		if rf.log[lastLogIndex].Term > args.LastLogTerm || (rf.log[lastLogIndex].Term == args.LastLogTerm && args.LastLogIndex < lastLogIndex) {
+			reply.Term = rf.currentTerm
+			reply.VoteGranted = false
+			return
+		}
+
 		reply.Term = args.Term
-		rf.votedFor = -1
-		rf.state = Follower
+		reply.VoteGranted = true
+		rf.votedFor = args.CandidateId
 	}
 
 }
