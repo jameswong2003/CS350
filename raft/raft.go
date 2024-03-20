@@ -143,8 +143,11 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 
 	if args.Term > rf.currentTerm {
-
+		reply.Term = args.Term
+		rf.votedFor = -1
+		rf.state = Follower
 	}
+
 }
 
 // Example code to send a RequestVote RPC to a server.
@@ -252,4 +255,19 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	go rf.ticker()
 
 	return rf
+}
+
+// Convert current Node to a different state
+func (rf *Raft) convertTo(state int32) {
+	switch state {
+	case Follower:
+		rf.votedFor = -1
+		rf.state = Follower
+	case Candidate:
+		rf.votedFor = rf.me
+		rf.state = Candidate
+		rf.currentTerm++
+	case Leader:
+		rf.state = Leader
+	}
 }
