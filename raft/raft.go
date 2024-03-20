@@ -34,6 +34,12 @@ type ApplyMsg struct {
 	CommandIndex int
 }
 
+const (
+	Leader = iota
+	Follower
+	Candidate
+)
+
 // A Go object implementing a single Raft peer.
 type Raft struct {
 	mu        sync.Mutex          // Lock to protect shared access to this peer's state
@@ -46,6 +52,15 @@ type Raft struct {
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
 
+	state int32
+
+	log         []interface{}
+	currentTerm int
+	votedFor    int
+	commitIndex int
+	lastApplied int
+	nextIndex   int
+	matchIndex  int
 }
 
 // Return currentTerm and whether this server
@@ -54,6 +69,11 @@ func (rf *Raft) GetState() (int, bool) {
 	var term int
 	var isleader bool
 	// Your code here (4A).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	term = rf.currentTerm
+	isleader = rf.state == Leader
 
 	return term, isleader
 }
@@ -96,17 +116,35 @@ func (rf *Raft) readPersist(data []byte) {
 // Field names must start with capital letters!
 type RequestVoteArgs struct {
 	// Your data here (4A, 4B).
+	Term         int
+	CandidateId  int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
 // Example RequestVote RPC reply structure.
 // Field names must start with capital letters!
 type RequestVoteReply struct {
 	// Your data here (4A).
+	Term        int
+	VoteGranted bool
 }
 
 // Example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (4A, 4B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	if args.Term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		reply.VoteGranted = false
+		return
+	}
+
+	if args.Term > rf.currentTerm {
+
+	}
 }
 
 // Example code to send a RequestVote RPC to a server.
