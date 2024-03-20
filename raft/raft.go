@@ -257,6 +257,76 @@ func (rf *Raft) ticker() {
 		// be started and to randomize sleeping time using
 		// time.Sleep().
 
+		select {
+		case <-rf.timerElectionChannel:
+			rf.startElection()
+		case <-rf.timerHeartbeatChannel:
+			rf.broadcastHeartBeat()
+		}
+
+	}
+}
+
+func (rf *Raft) startElection() {
+	rf.mu.Lock()
+
+	// Convert to Candidate
+	rf.convertTo(Candidate)
+	vote := 1
+	rf.mu.Unlock()
+
+	for i := 0; i < len(rf.peers); i++ {
+		if i == rf.me {
+			continue
+		}
+
+		go func(candidateId int) {
+			rf.mu.Lock()
+			lastLogIndex := len(rf.log) - 1
+			args := RequestVoteArgs{
+				Term:         rf.currentTerm,
+				CandidateId:  rf.me,
+				LastLogIndex: lastLogIndex,
+				LastLogTerm:  rf.log[lastLogIndex].Term,
+			}
+
+			rf.mu.Unlock()
+
+			reply := RequestVoteReply{}
+			if rf.sendRequestVote(candidateId, &args, &reply) {
+				rf.mu.Lock()
+				defer rf.mu.Unlock()
+
+				if rf.currentTerm != args.Term {
+					return
+				}
+
+				if reply.VoteGranted {
+					vote += 1
+
+					if vote > len(rf.peers)/2 && rf.state == Candidate {
+						rf.convertTo(Leader)
+
+						// Reinitialize the logs
+						for i := 0; i < len(rf.peers); i++ {
+							rf.nextIndex[i] = len(rf.log)
+							rf.matchIndex[i] = 0
+						}
+
+						rf.mu.Unlock()
+						rf.broadcastHeartBeat()
+						rf.mu.Lock()
+					} else {
+						if rf.currentTerm < reply.Term {
+							rf.convertTo(Follower)
+							rf.currentTerm = reply.Term
+						}
+					}
+				}
+			} else { //Call failed
+				return
+			}
+		}(i)
 	}
 }
 
