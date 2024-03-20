@@ -17,8 +17,10 @@ package raft
 //
 
 import (
+	"math/rand"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"cs350/labrpc"
 )
@@ -54,13 +56,21 @@ type Raft struct {
 
 	state int32
 
-	log         []LogEntry
 	currentTerm int
 	votedFor    int
+
+	timerElectionChannel     chan bool
+	timerHeartbeatChannel    chan bool
+	lastResetElectionTimer   int
+	lastResetHearbeatChannel int
+	timeoutHeartbeat         int
+	timeoutElection          int
+
+	log         []LogEntry
 	commitIndex int
 	lastApplied int
-	nextIndex   int
-	matchIndex  int
+	nextIndex   []int
+	matchIndex  []int
 }
 
 type LogEntry struct {
@@ -164,6 +174,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		reply.Term = args.Term
 		reply.VoteGranted = true
 		rf.votedFor = args.CandidateId
+
+		rf.resetElectionTimer()
 	}
 
 }
@@ -265,6 +277,20 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (4A, 4B).
+	rf.state = Follower
+	rf.currentTerm = 0
+	rf.votedFor = -1
+
+	rf.timerHeartbeatChannel = make(chan bool)
+	rf.timerElectionChannel = make(chan bool)
+	rf.timeoutHeartbeat = 100
+	rf.resetElectionTimer()
+
+	rf.log = append(rf.log, LogEntry{Term: 0})
+	rf.nextIndex = make([]int, len(rf.peers))
+	rf.matchIndex = make([]int, len(rf.peers))
+	rf.commitIndex = 0
+	rf.lastApplied = 0
 
 	// initialize from state persisted before a crash.
 	rf.readPersist(persister.ReadRaftState())
@@ -288,4 +314,10 @@ func (rf *Raft) convertTo(state int32) {
 	case Leader:
 		rf.state = Leader
 	}
+}
+
+func (rf *Raft) resetElectionTimer() {
+	rand.Seed(time.Now().UnixNano())
+	rf.lastResetElectionTimer = int(time.Now().UnixNano())
+	rf.timeoutElection = rf.timeoutHeartbeat*5 + int(rand.Int63n(150))
 }
