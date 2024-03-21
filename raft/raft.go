@@ -153,7 +153,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	if args.Term < rf.currentTerm {
+	if args.Term < rf.currentTerm || (rf.votedFor != -1 && rf.votedFor != args.CandidateId) {
 		reply.VoteGranted = false
 		reply.Term = rf.currentTerm
 		return
@@ -162,7 +162,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	if args.Term > rf.currentTerm {
 		rf.convertTo(Follower)
 		rf.currentTerm = args.Term
-		rf.votedFor = -1
 	}
 
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
@@ -171,9 +170,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		reply.Term = rf.currentTerm
 
 		rf.resetElectionTimer()
-	} else {
-		reply.VoteGranted = false
-		reply.Term = rf.currentTerm
 	}
 }
 
@@ -205,7 +201,10 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if args.Term > rf.currentTerm {
 		rf.convertTo(Follower)
 		rf.currentTerm = args.Term
+	} else if rf.state == Candidate {
+		rf.state = Follower
 	}
+
 	reply.Term = rf.currentTerm
 	reply.Success = true
 }
@@ -290,15 +289,6 @@ func (rf *Raft) ticker() {
 
 		// Your code here to check if a leader election should
 		// be started and to randomize sleeping time using
-		// time.Sleep().
-		// rf.mu.Lock()
-		// timeSinceLastHeartbeat := time.Now().UnixNano() - rf.lastHeartbeatResetTimer
-		// if rf.state != Leader && timeSinceLastHeartbeat > rf.timeoutHeartbeat {
-		// 	rf.startElection()
-		// }
-		// rf.mu.Unlock()
-
-		// time.Sleep(time.Duration(rand.Intn(150)+150) * time.Millisecond)
 		select {
 		case <-rf.electionTimerChan:
 			rf.startElection()
@@ -313,7 +303,6 @@ func (rf *Raft) startElection() {
 	rf.convertTo(Candidate)
 	rf.currentTerm++
 	vote := 1
-	rf.resetElectionTimer()
 	rf.mu.Unlock()
 
 	for i := 0; i < len(rf.peers); i++ {
@@ -354,8 +343,6 @@ func (rf *Raft) startElection() {
 						rf.currentTerm = reply.Term
 					}
 				}
-			} else {
-				return
 			}
 		}(i)
 	}
@@ -364,6 +351,7 @@ func (rf *Raft) startElection() {
 func (rf *Raft) broadcastHeartbeat() {
 	rf.mu.Lock()
 	if rf.state != Leader {
+		rf.mu.Unlock()
 		return
 	}
 
@@ -387,12 +375,10 @@ func (rf *Raft) broadcastHeartbeat() {
 				rf.mu.Lock()
 				defer rf.mu.Unlock()
 
-				// Do not broadcast if it's not leader
 				if rf.state != Leader {
 					return
 				}
 
-				// Do not broadcast if the terms do not match
 				if rf.currentTerm != args.Term {
 					return
 				}
@@ -417,9 +403,7 @@ func (rf *Raft) electionTimer() {
 			timeElapsed := (time.Now().UnixNano() - int64(rf.lastElectionResetTimer)) / time.Hour.Milliseconds()
 
 			if timeElapsed > rf.timeoutElection {
-				rf.mu.Unlock()
 				rf.electionTimerChan <- true
-				return
 			}
 		}
 
@@ -433,22 +417,19 @@ func (rf *Raft) heartbeatTimer() {
 		rf.mu.Lock()
 
 		if rf.state == Leader {
-			timeElapsed := (time.Now().UnixNano() - int64(rf.lastHeartbeatResetTimer)) / time.Hour.Milliseconds()
+			timeElapsed := (time.Now().UnixNano() - rf.lastHeartbeatResetTimer) / int64(time.Millisecond)
 
 			if timeElapsed > rf.timeoutHeartbeat {
-				rf.mu.Unlock()
 				rf.heartbeatTimerChan <- true
-				return
 			}
 		}
 
 		rf.mu.Unlock()
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 5)
 	}
 }
 
 func (rf *Raft) resetElectionTimer() {
-	rand.Seed(time.Now().UnixNano())
 	rf.timeoutElection = rf.timeoutHeartbeat*5 + rand.Int63n(150)
 	rf.lastElectionResetTimer = time.Now().UnixNano()
 }
@@ -458,13 +439,17 @@ func (rf *Raft) convertTo(state int) {
 	case Leader:
 		rf.state = Leader
 		rf.lastHeartbeatResetTimer = time.Now().UnixNano()
+		// fmt.Println(rf.me, " to leader")
 	case Candidate:
 		rf.state = Candidate
 		rf.votedFor = rf.me
 		rf.currentTerm++
+		rf.resetElectionTimer()
+		// fmt.Println(rf.me, " to candidate")
 	case Follower:
 		rf.state = Follower
 		rf.votedFor = -1
+		// fmt.Println(rf.me, " to follower")
 	}
 }
 
@@ -491,7 +476,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	rf.heartbeatTimerChan = make(chan bool)
 	rf.electionTimerChan = make(chan bool)
-	rf.timeoutHeartbeat = 150
+	rf.timeoutHeartbeat = 100
 	rf.resetElectionTimer()
 
 	// start ticker goroutine to start elections.
