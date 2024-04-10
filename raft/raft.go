@@ -17,11 +17,13 @@ package raft
 //
 
 import (
+	"bytes"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"cs350/labgob"
 	"cs350/labrpc"
 )
 
@@ -104,6 +106,16 @@ func (rf *Raft) persist() {
 	// e.Encode(rf.yyy)
 	// data := w.Bytes()
 	// rf.persister.SaveRaftState(data)
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	if e.Encode(rf.currentTerm) != nil ||
+		e.Encode(rf.votedFor) != nil ||
+		e.Encode(rf.log) != nil {
+		panic("failed to encode raft persistent state")
+	}
+	data := w.Bytes()
+	rf.persister.SaveRaftState(data)
+
 }
 
 // Restore previously persisted state.
@@ -124,6 +136,15 @@ func (rf *Raft) readPersist(data []byte) {
 	//   rf.xxx = xxx
 	//   rf.yyy = yyy
 	// }
+
+	r := bytes.NewBuffer(data)
+	d := labgob.NewDecoder(r)
+	if d.Decode(&rf.currentTerm) != nil ||
+		d.Decode(&rf.votedFor) != nil ||
+		d.Decode(&rf.log) != nil {
+		panic("Failed to decode raft persistent state")
+	}
+
 }
 
 // Example RequestVote RPC arguments structure.
