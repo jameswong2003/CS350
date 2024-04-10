@@ -74,9 +74,19 @@ type Raft struct {
 	commitIndex int
 	lastApplied int
 
-	// // Volatile state on leaders
-	// nextIndex  []int
-	// matchIndex []int
+	// Volatile state on leaders
+	nextIndex  []int
+	matchIndex []int
+}
+
+// Grab the last index of the log
+func (rf *Raft) GetLastLogIndex() int {
+	return len(rf.log) - 1
+}
+
+// Grab the last term of the last index of the log
+func (rf *Raft) GetLastLogTerm() int {
+	return rf.log[rf.GetLastLogIndex()].Term
 }
 
 // Return currentTerm and whether this server
@@ -170,6 +180,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (4A, 4B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
+	defer rf.persist()
 
 	// Check if argument term is greater
 	if args.Term > rf.currentTerm {
@@ -211,13 +222,53 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	defer rf.mu.Unlock()
 
 	reply.Term = rf.currentTerm
+
+	// reply false if term < current term
+	if args.Term < rf.currentTerm {
+		reply.Success = false
+		return
+	}
+
+	LastLogIndex := rf.GetLastLogIndex()
+	// reply false if log doesn't contain an entry at prevlogindex whose term matches prevlogterm
+	if (LastLogIndex < args.PrevLogIndex) || (rf.log[args.PrevLogIndex].Term != args.PrevLogTerm) {
+		reply.Success = false
+		return
+	}
+
+	// if an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that it follows
+
+	i := args.PrevLogIndex + 1
+	j := 0
+
+	for i < LastLogIndex+1 && j < len(args.Entries) {
+		if rf.log[i].Term != args.Entries[j].Term {
+			break
+		}
+		i += 1
+		j += 1
+	}
+
+	// append new entries not already in log
+	rf.log = rf.log[:i]         // keep logs until conflict
+	newLogs := args.Entries[j:] // New logs to append
+	rf.log = append(rf.log, newLogs...)
+
+	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+	if args.CommitIndex > rf.commitIndex {
+		lastIndex := rf.GetLastLogIndex()
+		if args.CommitIndex < lastIndex {
+			rf.commitIndex = args.CommitIndex
+		} else {
+			rf.commitIndex = lastIndex
+		}
+	}
+
 	if args.Term > rf.currentTerm {
 		reply.Success = true
 		rf.currentTerm = args.Term
 		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
 		rf.convertTo(Follower)
-	} else {
-		reply.Success = false
 	}
 }
 
@@ -405,6 +456,7 @@ func (rf *Raft) broadcastHeartbeat() {
 }
 
 func (rf *Raft) convertTo(state int) {
+	defer rf.persist()
 	switch state {
 	case Follower:
 		rf.state = Follower
@@ -441,6 +493,10 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	rf.electionTimer = time.NewTimer(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
 	rf.heartbeatTicker = time.NewTicker(100 * time.Millisecond)
+
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+	rf.log = append(rf.log, &LogEntry{Term: 0})
 
 	rf.readPersist(persister.ReadRaftState())
 
