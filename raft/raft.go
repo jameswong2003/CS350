@@ -217,42 +217,27 @@ type AppendEntriesReply struct {
 	Success bool
 }
 
-// func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-// 	rf.mu.Lock()
-// 	defer rf.mu.Unlock()
-
-// 	reply.Term = rf.currentTerm
-// 	if args.Term > rf.currentTerm {
-// 		reply.Success = true
-// 		rf.currentTerm = args.Term
-// 		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
-// 		rf.convertTo(Follower)
-// 	} else {
-// 		reply.Success = false
-// 	}
-// }
-
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	// Step 1: Update reply.Term atomically
+	// Update reply.Term atomically
 	reply.Term = rf.currentTerm
 
-	// Step 2: Check if term < current term
+	// Check if term < current term
 	if args.Term < rf.currentTerm {
 		reply.Success = false
 		return
 	}
 
-	// Step 3: Check if the log contains an entry at prevLogIndex whose term matches prevLogTerm
+	// Check if the log contains an entry at prevLogIndex whose term matches prevLogTerm
 	lastLogIndex := rf.GetLastLogIndex()
 	if lastLogIndex < args.PrevLogIndex || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
 		reply.Success = false
 		return
 	}
 
-	// Step 4: Update reply.Success atomically
+	// Update reply.Success atomically
 	reply.Success = true
 
 	// Step 5: Update currentTerm, reset election timer, and convert to Follower if needed
@@ -262,7 +247,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
 	}
 
-	// Step 6: Append new entries not already in log
+	// Append new entries not already in log
 	i := args.PrevLogIndex + 1
 	j := 0
 
@@ -277,7 +262,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// Update logs
 	rf.log = append(rf.log[:i], args.Entries[j:]...)
 
-	// Step 7: Update commitIndex
+	// Update commitIndex
 	if args.CommitIndex > rf.commitIndex {
 		lastIndex := rf.GetLastLogIndex()
 		if args.CommitIndex < lastIndex {
@@ -333,11 +318,23 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 // term. The third return value is true if this server believes it is
 // the leader.
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
 	// Your code here (4B).
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	term, isLeader := rf.GetState()
+	if !isLeader {
+		return -1, term, isLeader
+	}
+
+	rf.log = append(rf.log, &LogEntry{
+		Term:    term,
+		Command: command,
+	})
+	rf.persist()
+
+	index := rf.GetLastLogIndex()
 
 	return index, term, isLeader
 }
