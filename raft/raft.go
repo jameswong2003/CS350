@@ -195,10 +195,27 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 
+	// if votedfor is nulled or candidates id, and candidate's log is at least up to date as receiver's log, grant vote
+	LastLogIndex := rf.GetLastLogIndex()
+	LastLogTerm := rf.GetLastLogTerm()
+	upToDate := false
+
+	if args.LastLogTerm > LastLogTerm {
+		upToDate = true
+	}
+	if args.LastLogTerm == LastLogTerm {
+		if args.LastLogIndex > LastLogIndex {
+			upToDate = true
+		}
+	}
+
 	// confirm vote
-	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
+	if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && upToDate {
 		reply.VoteGranted = true
 		rf.votedFor = args.CandidateId
+		reply.Term = rf.currentTerm
+	} else {
+		reply.VoteGranted = false
 		reply.Term = rf.currentTerm
 	}
 }
