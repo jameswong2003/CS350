@@ -217,44 +217,67 @@ type AppendEntriesReply struct {
 	Success bool
 }
 
+// func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+// 	rf.mu.Lock()
+// 	defer rf.mu.Unlock()
+
+// 	reply.Term = rf.currentTerm
+// 	if args.Term > rf.currentTerm {
+// 		reply.Success = true
+// 		rf.currentTerm = args.Term
+// 		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
+// 		rf.convertTo(Follower)
+// 	} else {
+// 		reply.Success = false
+// 	}
+// }
+
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
+	// Step 1: Update reply.Term atomically
 	reply.Term = rf.currentTerm
 
-	// reply false if term < current term
+	// Step 2: Check if term < current term
 	if args.Term < rf.currentTerm {
 		reply.Success = false
 		return
 	}
 
-	LastLogIndex := rf.GetLastLogIndex()
-	// reply false if log doesn't contain an entry at prevlogindex whose term matches prevlogterm
-	if (LastLogIndex < args.PrevLogIndex) || (rf.log[args.PrevLogIndex].Term != args.PrevLogTerm) {
+	// Step 3: Check if the log contains an entry at prevLogIndex whose term matches prevLogTerm
+	lastLogIndex := rf.GetLastLogIndex()
+	if lastLogIndex < args.PrevLogIndex || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
 		reply.Success = false
 		return
 	}
 
-	// if an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that it follows
+	// Step 4: Update reply.Success atomically
+	reply.Success = true
 
+	// Step 5: Update currentTerm, reset election timer, and convert to Follower if needed
+	if args.Term > rf.currentTerm {
+		rf.currentTerm = args.Term
+		rf.convertTo(Follower)
+		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
+	}
+
+	// Step 6: Append new entries not already in log
 	i := args.PrevLogIndex + 1
 	j := 0
 
-	for i < LastLogIndex+1 && j < len(args.Entries) {
+	for i < lastLogIndex+1 && j < len(args.Entries) {
 		if rf.log[i].Term != args.Entries[j].Term {
 			break
 		}
-		i += 1
-		j += 1
+		i++
+		j++
 	}
 
-	// append new entries not already in log
-	rf.log = rf.log[:i]         // keep logs until conflict
-	newLogs := args.Entries[j:] // New logs to append
-	rf.log = append(rf.log, newLogs...)
+	// Update logs
+	rf.log = append(rf.log[:i], args.Entries[j:]...)
 
-	// If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+	// Step 7: Update commitIndex
 	if args.CommitIndex > rf.commitIndex {
 		lastIndex := rf.GetLastLogIndex()
 		if args.CommitIndex < lastIndex {
@@ -262,13 +285,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		} else {
 			rf.commitIndex = lastIndex
 		}
-	}
-
-	if args.Term > rf.currentTerm {
-		reply.Success = true
-		rf.currentTerm = args.Term
-		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
-		rf.convertTo(Follower)
 	}
 }
 
