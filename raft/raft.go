@@ -208,13 +208,48 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	reply.Term = rf.currentTerm
 
+	if args.Term < rf.currentTerm {
+		reply.Success = false
+		return
+	}
+
 	if args.Term >= rf.currentTerm {
-		reply.Success = true
 		rf.currentTerm = args.Term
 		rf.electionTimer.Reset(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
 		rf.convertTo(Follower)
-	} else {
+	}
+
+	// Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
+	if len(rf.log)-1 < args.PrevLogIndex || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
 		reply.Success = false
+		return
+	}
+
+	// If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it
+	i := args.PrevLogIndex + 1
+	j := 0
+	for i < len(rf.log) && j < len(args.Entries) {
+		if rf.log[i].Term != args.Entries[j].Term {
+			break
+		}
+		i++
+		j++
+	}
+
+	rf.log = rf.log[:i]
+	args.Entries = args.Entries[j:]
+	rf.log = append(rf.log, args.Entries...)
+
+	reply.Success = true
+
+	// if leaderCommit > commitIndex, set commitINdex = min(leaderCommit, index of last new entry)
+	if args.CommitIndex > rf.commitIndex {
+		lastIndex := len(rf.log) - 1
+		if args.CommitIndex < lastIndex {
+			rf.commitIndex = args.CommitIndex
+		} else {
+			rf.commitIndex = lastIndex
+		}
 	}
 }
 
