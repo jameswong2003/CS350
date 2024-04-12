@@ -268,6 +268,14 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (4B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	term, isLeader = rf.GetState()
+
+	if isLeader {
+		rf.log = append(rf.log, LogEntry{Term: term, Command: command})
+		return len(rf.log) - 1, term, isLeader
+	}
 
 	return index, term, isLeader
 }
