@@ -72,9 +72,11 @@ type Raft struct {
 	commitIndex int
 	lastApplied int
 
-	// // Volatile state on leaders
-	// nextIndex  []int
-	// matchIndex []int
+	applyCh chan ApplyMsg
+
+	// Volatile state on leaders
+	nextIndex  []int
+	matchIndex []int
 }
 
 // Return currentTerm and whether this server
@@ -180,7 +182,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			return
 		}
 
-		if args.LastLogIndex == lastLogTerm && args.LastLogIndex >= len(rf.log) {
+		if args.LastLogTerm == lastLogTerm && args.LastLogIndex >= len(rf.log) {
 			reply.VoteGranted = true
 			rf.votedFor = args.CandidateId
 			return
@@ -423,7 +425,7 @@ func (rf *Raft) startElection() {
 	}
 	rf.mu.Unlock()
 
-	if voteCount > len(rf.peers)/2 {
+	if voteCount > len(rf.peers)/2 && rf.state == Candidate {
 		rf.mu.Lock()
 		rf.convertTo(Leader)
 		rf.mu.Unlock()
@@ -459,6 +461,7 @@ func (rf *Raft) convertTo(state int) {
 		rf.state = Follower
 		rf.votedFor = -1
 	case Candidate:
+		rf.currentTerm += 1
 		rf.state = Candidate
 		rf.votedFor = rf.me
 	case Leader:
@@ -487,6 +490,12 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.state = Follower
 	rf.currentTerm = 1
+	rf.votedFor = -1
+
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+	rf.applyCh = applyCh
+	rf.log = append(rf.log, LogEntry{Term: 0}) // causing errors for 4A
 
 	rf.electionTimer = time.NewTimer(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
 	rf.heartbeatTicker = time.NewTicker(100 * time.Millisecond)
