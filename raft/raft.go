@@ -428,6 +428,13 @@ func (rf *Raft) startElection() {
 	if voteCount > len(rf.peers)/2 && rf.state == Candidate {
 		rf.mu.Lock()
 		rf.convertTo(Leader)
+
+		// reinitialize volatile state on leaders after election
+		for i := 0; i < len(rf.peers); i++ {
+			rf.nextIndex[i] = len(rf.log)
+			rf.matchIndex[i] = 0
+		}
+
 		rf.mu.Unlock()
 		rf.broadcastHeartbeat()
 	}
@@ -495,7 +502,11 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.commitIndex = 0
 	rf.lastApplied = 0
 	rf.applyCh = applyCh
-	rf.log = append(rf.log, LogEntry{Term: 0}) // causing errors for 4A
+	rf.log = append(rf.log, LogEntry{Term: 0})
+	rf.nextIndex = make([]int, len(rf.peers))
+	rf.matchIndex = make([]int, len(rf.peers))
+
+	rf.applyCh = applyCh
 
 	rf.electionTimer = time.NewTimer(time.Duration(300+rand.Int31n(150)) * time.Millisecond)
 	rf.heartbeatTicker = time.NewTicker(100 * time.Millisecond)
