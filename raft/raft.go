@@ -73,12 +73,11 @@ type Raft struct {
 	nextIndex  []int
 	matchIndex []int
 
-	numVotes           int
-	applyCh            chan ApplyMsg
-	electionWinChan    chan bool
-	becomeFollowerChan chan bool
-	grantVoteChan      chan bool
-	heartbeatChan      chan bool
+	numVotes        int
+	applyCh         chan ApplyMsg
+	electionWinChan chan bool
+	grantVoteChan   chan bool
+	heartbeatChan   chan bool
 }
 
 // Return currentTerm and whether this server
@@ -164,11 +163,11 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (4A, 4B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	defer rf.persist()
 
 	if rf.currentTerm > args.Term {
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
+		rf.persist()
 		return
 	}
 
@@ -200,6 +199,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.votedFor = args.CandidateId
 		rf.notifyChannel(rf.grantVoteChan)
 	}
+	rf.persist()
 }
 
 type AppendEntriesArgs struct {
@@ -222,7 +222,6 @@ type AppendEntriesReply struct {
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	defer rf.persist()
 
 	if rf.currentTerm > args.Term {
 		reply.Success = false
@@ -289,6 +288,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		}
 		go rf.commitlog()
 	}
+
+	rf.persist()
 }
 
 // Example code to send a RequestVote RPC to a server.
@@ -355,7 +356,6 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	defer rf.persist()
 
 	if rf.state != Leader || rf.currentTerm != args.Term || reply.Term < rf.currentTerm {
 		return ok
@@ -364,17 +364,17 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 	if reply.Term > rf.currentTerm {
 		rf.convertTo(Follower)
 		rf.currentTerm = reply.Term
+		rf.persist()
 		return ok
 	}
 
 	// Update matchIndex and nextIndex of the follower based on the reply
 	if reply.Success {
-		newMatchIndex := args.PrevLogIndex + len(args.Entries)
-		rf.matchIndex[server] = newMatchIndex
+		rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
 		rf.nextIndex[server] = rf.matchIndex[server] + 1
 	} else {
 		// Handle the case where the AppendEntries RPC was not successful
-		if reply.ConflictTerm < 0 {
+		if reply.ConflictTerm == -1 {
 			// Follower's log is shorter than the leader's log
 			rf.nextIndex[server] = reply.ConflictIndex
 			rf.matchIndex[server] = rf.nextIndex[server] - 1
@@ -418,6 +418,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 			break
 		}
 	}
+	rf.persist()
 	return ok
 }
 
@@ -484,25 +485,23 @@ func (rf *Raft) ticker() {
 
 		switch rf.state {
 		case Leader:
+			time.Sleep(heartbeatTimer)
+			rf.mu.Lock()
+			rf.broadcastHeartBeat()
+			rf.mu.Unlock()
+		case Candidate:
 			select {
-			case <-rf.becomeFollowerChan:
-			case <-time.After(heartbeatTimer):
-				rf.mu.Lock()
-				rf.broadcastHeartBeat()
-				rf.mu.Unlock()
+			case <-rf.heartbeatChan:
+				rf.convertTo(Follower)
+			case <-rf.electionWinChan:
+				rf.convertTo(Leader)
+			case <-time.After(electionTimer):
+				rf.convertTo(Candidate)
 			}
 		case Follower:
 			select {
 			case <-rf.grantVoteChan:
 			case <-rf.heartbeatChan:
-			case <-time.After(electionTimer):
-				rf.convertTo(Candidate)
-			}
-		case Candidate:
-			select {
-			case <-rf.becomeFollowerChan:
-			case <-rf.electionWinChan:
-				rf.convertTo(Leader)
 			case <-time.After(electionTimer):
 				rf.convertTo(Candidate)
 			}
@@ -532,6 +531,10 @@ func (rf *Raft) startElection() {
 }
 
 func (rf *Raft) broadcastHeartBeat() {
+	if rf.state != Leader {
+		return
+	}
+
 	// send appendEntries to all peers
 	for i := 0; i < len(rf.peers); i++ {
 		if i == rf.me {
@@ -582,7 +585,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.nextIndex = make([]int, len(rf.peers))
 	rf.matchIndex = make([]int, len(rf.peers))
 	rf.electionWinChan = make(chan bool)
-	rf.becomeFollowerChan = make(chan bool)
 	rf.grantVoteChan = make(chan bool)
 	rf.heartbeatChan = make(chan bool)
 
@@ -622,9 +624,6 @@ func (rf *Raft) convertTo(state int) {
 
 		rf.startElection()
 	case Follower:
-		if rf.state != Follower {
-			rf.notifyChannel(rf.becomeFollowerChan)
-		}
 		rf.state = Follower
 		rf.votedFor = -1
 	}
@@ -633,7 +632,6 @@ func (rf *Raft) convertTo(state int) {
 // Apply new log
 func (rf *Raft) commitlog() {
 	rf.mu.Lock()
-	defer rf.mu.Unlock()
 
 	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
 		rf.applyCh <- ApplyMsg{
@@ -643,6 +641,8 @@ func (rf *Raft) commitlog() {
 		}
 		rf.lastApplied = i
 	}
+
+	rf.mu.Unlock()
 }
 
 func (rf *Raft) notifyChannel(ch chan bool) {
