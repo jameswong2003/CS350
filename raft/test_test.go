@@ -314,7 +314,7 @@ loop:
 		for index := range is {
 			sameTerm, e := cfg.wait(index, servers, term)
 			if !sameTerm {
-				// Peers have moved on to later terms so we 
+				// Peers have moved on to later terms so we
 				// can't expect all Start()s to have succeeded.
 				failed = true
 				break
