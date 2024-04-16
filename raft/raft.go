@@ -73,11 +73,12 @@ type Raft struct {
 	nextIndex  []int
 	matchIndex []int
 
-	numVotes        int
-	applyCh         chan ApplyMsg
-	electionWinChan chan bool
-	grantVoteChan   chan bool
-	heartbeatChan   chan bool
+	numVotes           int
+	applyCh            chan ApplyMsg
+	electionWinChan    chan bool
+	becomeFollowerChan chan bool
+	grantVoteChan      chan bool
+	heartbeatChan      chan bool
 }
 
 // Return currentTerm and whether this server
@@ -158,7 +159,6 @@ type RequestVoteReply struct {
 	VoteGranted bool
 }
 
-// Example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (4A, 4B).
 	rf.mu.Lock()
@@ -480,28 +480,34 @@ func (rf *Raft) ticker() {
 		// Your code here to check if a leader election should
 		// be started and to randomize sleeping time using
 		// time.Sleep().
+		rf.mu.Lock()
+		state := rf.state
+		rf.mu.Unlock()
+
 		heartbeatTimer := 80 * time.Millisecond
 		electionTimer := time.Duration(rand.Intn(150)+300) * time.Millisecond
 
-		switch rf.state {
+		switch state {
 		case Leader:
-			time.Sleep(heartbeatTimer)
-			rf.mu.Lock()
-			rf.broadcastHeartBeat()
-			rf.mu.Unlock()
-		case Candidate:
 			select {
-			case <-rf.heartbeatChan:
-				rf.convertTo(Follower)
-			case <-rf.electionWinChan:
-				rf.convertTo(Leader)
-			case <-time.After(electionTimer):
-				rf.convertTo(Candidate)
+			case <-rf.becomeFollowerChan:
+			case <-time.After(heartbeatTimer):
+				rf.mu.Lock()
+				rf.broadcastHeartBeat()
+				rf.mu.Unlock()
 			}
 		case Follower:
 			select {
 			case <-rf.grantVoteChan:
 			case <-rf.heartbeatChan:
+			case <-time.After(electionTimer):
+				rf.convertTo(Candidate)
+			}
+		case Candidate:
+			select {
+			case <-rf.becomeFollowerChan:
+			case <-rf.electionWinChan:
+				rf.convertTo(Leader)
 			case <-time.After(electionTimer):
 				rf.convertTo(Candidate)
 			}
@@ -576,20 +582,21 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.numVotes = 0
+
 	rf.commitIndex = 0
 	rf.lastApplied = 0
 
 	rf.applyCh = applyCh
-	rf.log = append(rf.log, LogEntry{Term: 0})
-
-	rf.nextIndex = make([]int, len(rf.peers))
-	rf.matchIndex = make([]int, len(rf.peers))
 	rf.electionWinChan = make(chan bool)
+	rf.becomeFollowerChan = make(chan bool)
 	rf.grantVoteChan = make(chan bool)
 	rf.heartbeatChan = make(chan bool)
+	rf.log = append(rf.log, LogEntry{Term: 0})
 
+	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
+	// start the background server loop
 	go rf.ticker()
 
 	return rf
@@ -632,6 +639,7 @@ func (rf *Raft) convertTo(state int) {
 // Apply new log
 func (rf *Raft) commitlog() {
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
 	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
 		rf.applyCh <- ApplyMsg{
@@ -641,8 +649,6 @@ func (rf *Raft) commitlog() {
 		}
 		rf.lastApplied = i
 	}
-
-	rf.mu.Unlock()
 }
 
 func (rf *Raft) notifyChannel(ch chan bool) {
