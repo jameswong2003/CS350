@@ -19,11 +19,14 @@ package raft
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
+	"log"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"cs350/labgob"
 	"cs350/labrpc"
 )
 
@@ -124,8 +127,8 @@ func (rf *Raft) readPersist(data []byte) {
 	}
 	// Your code here (4B).
 	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := labgob.NewDecoder(r)
+	r := bytes.NewBuffer(data)
+	d := labgob.NewDecoder(r)
 	// var xxx
 	// var yyy
 	// if d.Decode(&xxx) != nil ||
@@ -135,11 +138,16 @@ func (rf *Raft) readPersist(data []byte) {
 	//   rf.xxx = xxx
 	//   rf.yyy = yyy
 	// }
-	buffer := bytes.NewBuffer(data)
-	decode := gob.NewDecoder(buffer)
-	decode.Decode(&rf.currentTerm)
-	decode.Decode(&rf.votedFor)
-	decode.Decode(&rf.log)
+	var currentTerm int
+	var votedFor int
+	var logs []LogEntry
+	if d.Decode(&currentTerm) != nil || d.Decode(&votedFor) != nil || d.Decode(&logs) != nil {
+		panic("big issue has gone wrong")
+	} else {
+		rf.currentTerm = currentTerm
+		rf.votedFor = votedFor
+		rf.log = logs
+	}
 }
 
 // Example RequestVote RPC arguments structure.
@@ -162,13 +170,15 @@ type RequestVoteReply struct {
 
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (4A, 4B).
+	log.Println(rf.me, "received requestvote from", args.CandidateId)
+
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
+	defer rf.persist()
 
 	if rf.currentTerm > args.Term {
 		reply.VoteGranted = false
 		reply.Term = rf.currentTerm
-		rf.persist()
 		return
 	}
 
@@ -182,6 +192,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// If votedFor is null or candidateId, and candidate’s log is at least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
 	upToDate := false
+	// log.Printf("server %d term %d logs %v\n", rf.me, rf.currentTerm, rf.log)
 	lastLogIndex := len(rf.log) - 1
 	lastLogTerm := rf.log[len(rf.log)-1].Term
 
@@ -200,7 +211,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		reply.VoteGranted = true
 		rf.notifyChannel(rf.grantVoteChan)
 	}
-	rf.persist()
 }
 
 type AppendEntriesArgs struct {
@@ -221,14 +231,15 @@ type AppendEntriesReply struct {
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+	log.Print(rf.me, " received heartbeat/appendentries from ", args.LeaderId)
 	rf.mu.Lock()
-	defer rf.mu.Unlock()
 
 	if rf.currentTerm > args.Term {
 		reply.Success = false
 		reply.Term = rf.currentTerm
 		reply.ConflictIndex = -1
 		reply.ConflictTerm = -1
+		rf.mu.Unlock()
 		return
 	}
 
@@ -238,7 +249,10 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	lastIndex := len(rf.log) - 1
+
+	rf.mu.Unlock()
 	rf.notifyChannel(rf.heartbeatChan)
+	rf.mu.Lock()
 
 	// Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
 	if lastIndex < args.PrevLogIndex { // follower log is shorter than leader log
@@ -246,6 +260,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		reply.Term = rf.currentTerm
 		reply.ConflictIndex = lastIndex + 1
 		reply.ConflictTerm = -1
+		rf.mu.Unlock()
 		return
 	}
 
@@ -263,6 +278,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			}
 		}
 		reply.Success = false
+		rf.mu.Unlock()
 		return
 	}
 
@@ -279,6 +295,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	rf.log = append(rf.log[:i], args.Entries[j:]...)
+	log.Println("Follower", rf.me, "has log", rf.log, "after AppendEntries")
 
 	// Successfully updated
 	reply.Success = true
@@ -290,10 +307,13 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		} else {
 			rf.commitIndex = len(rf.log) - 1
 		}
+
+		log.Print("committing log in AppendEntries for server: ", rf.me)
 		go rf.commitlog()
 	}
 
 	rf.persist()
+	rf.mu.Unlock()
 }
 
 // Example code to send a RequestVote RPC to a server.
@@ -320,8 +340,10 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 // Look at the comments in ../labrpc/labrpc.go for more details.
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	log.Println(ok)
 
-	if ok == false {
+	if !ok { //always executing
+		fmt.Println("request vote failed, ", rf.me)
 		return ok
 	}
 
@@ -354,7 +376,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
 	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
 
-	if ok == false {
+	if !ok {
 		return ok
 	}
 
@@ -362,6 +384,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 	defer rf.mu.Unlock()
 
 	if rf.state != Leader || rf.currentTerm != args.Term || reply.Term < rf.currentTerm {
+		log.Println(rf.me, "received nconsistencies in sendAppendEntries")
 		return ok
 	}
 
@@ -377,6 +400,8 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 		rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
 		rf.nextIndex[server] = args.PrevLogIndex + len(args.Entries) + 1
 	} else {
+		rf.nextIndex[server] = 1
+		return ok
 		// Handle the case where the AppendEntries RPC was not successful
 		if reply.ConflictTerm == -1 {
 			// Follower's log is shorter than the leader's log
@@ -420,6 +445,8 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 		// Check for majority
 		if nCount > len(rf.peers)/2 {
 			rf.commitIndex = N
+
+			log.Print("committing log in sendAppendEntries for server ", rf.me)
 			go rf.commitlog()
 			break
 		}
@@ -453,6 +480,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		term = rf.currentTerm
 		index = len(rf.log)
 		rf.log = append(rf.log, LogEntry{Term: term, Command: command})
+		log.Println("Leader", rf.me, "appended", rf.log[index], "to log")
 		rf.persist()
 	}
 
@@ -539,10 +567,12 @@ func (rf *Raft) startElection() {
 
 		reply := RequestVoteReply{}
 		go rf.sendRequestVote(i, &args, &reply)
+		log.Println("sendRequestVote to", i)
 	}
 }
 
 func (rf *Raft) broadcastHeartBeat() {
+	log.Print(rf.me, " is broadcasting heartbeat")
 	if rf.state != Leader {
 		return
 	}
@@ -616,6 +646,7 @@ func (rf *Raft) convertTo(state int) {
 		rf.mu.Lock()
 
 		rf.state = Leader
+		log.Print(rf.me, " converted to Leader")
 		// reinitialize volatile state after election
 		rf.nextIndex = make([]int, len(rf.peers))
 		rf.matchIndex = make([]int, len(rf.peers))
@@ -628,16 +659,16 @@ func (rf *Raft) convertTo(state int) {
 		rf.mu.Unlock()
 	case Candidate:
 		rf.mu.Lock()
-
 		rf.currentTerm += 1
 		rf.state = Candidate
+		log.Print(rf.me, " converted to Candidate")
 		rf.votedFor = rf.me
 		rf.numVotes = 1
 		rf.persist()
-
 		rf.startElection()
 		rf.mu.Unlock()
 	case Follower:
+		log.Println(rf.me, " converted to Follower")
 		rf.state = Follower
 		rf.votedFor = -1
 	}
@@ -645,16 +676,23 @@ func (rf *Raft) convertTo(state int) {
 
 // Apply new log
 func (rf *Raft) commitlog() {
+	log.Println("Committing log for server: ", rf.me, "with log:", rf.log)
+
 	rf.mu.Lock()
 
 	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
-		rf.applyCh <- ApplyMsg{
+		applyMessage := ApplyMsg{
 			CommandValid: true,
 			Command:      rf.log[i].Command,
 			CommandIndex: i,
 		}
+		log.Println("created applyMessage", applyMessage, " server:", rf.me, "LA:", rf.lastApplied, "CI:", rf.commitIndex, "i:", i)
+
+		rf.applyCh <- applyMessage
+
 		rf.lastApplied = i
 	}
+
 	rf.mu.Unlock()
 }
 
