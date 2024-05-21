@@ -4,6 +4,7 @@ import (
 	"cs350/labgob"
 	"cs350/labrpc"
 	"cs350/raft"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -68,7 +69,7 @@ func (ls *LockServer) waitForApplied(op Op) (bool, Op) {
 	index, _, isLeader := ls.rf.Start(op)
 
 	if !isLeader {
-		// fmt.Printf("debug 5 wrong leader return\n")
+		fmt.Printf("debug 5 wrong leader return\n")
 		return false, op
 	}
 
@@ -82,7 +83,10 @@ func (ls *LockServer) waitForApplied(op Op) (bool, Op) {
 
 	select {
 	case appliedOp := <-opCh:
-		return ls.isSameOp(op, appliedOp), appliedOp
+		same := ls.isSameOp(op, appliedOp)
+		// log.Print(same)
+		return same, appliedOp
+
 	case <-time.After(20 * time.Millisecond):
 		return false, op
 	}
@@ -151,6 +155,24 @@ func (ls *LockServer) giveLockToOwner(key string, lockOwner ClientID) {
 
 func (ls *LockServer) applyToStateMachine(op *Op) {
 	// 4C: Your code here
+	currentOwner, _ := ls.store.getLockOwner(op.Key)
+
+	if op.Type == LockOp {
+		ls.store.lock(op.Key, op.ClientId)
+	}
+
+	if op.Type == UnlockOp {
+		ls.store.unlock(op.Key, op.ClientId)
+	}
+
+	if ls.isLeader() {
+		ls.events <- Event{Op: op.Type, eventType: ServerEvent, key: op.Key, id: op.ClientId}
+
+	}
+	newOwner, _ := ls.store.getLockOwner(op.Key)
+	if newOwner != currentOwner {
+		ls.giveLockToOwner(op.Key, newOwner)
+	}
 }
 
 // the tester calls Kill() when a LockServer instance won't

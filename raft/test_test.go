@@ -828,7 +828,7 @@ func TestFigure8Unreliable4B(t *testing.T) {
 		}
 
 		if leader != -1 && (rand.Int()%1000) < int(RaftElectionTimeout/time.Millisecond)/2 {
-			fmt.Println("disonnected leader, ", leader)
+			// fmt.Println("disonnected leader, ", leader)
 			cfg.disconnect(leader)
 			nup -= 1
 		}
@@ -836,7 +836,7 @@ func TestFigure8Unreliable4B(t *testing.T) {
 		if nup < 3 {
 			s := rand.Int() % servers
 			if cfg.connected[s] == false {
-				fmt.Println("connected,", s)
+				// fmt.Println("connected,", s)
 				cfg.connect(s)
 				nup += 1
 			}
@@ -845,7 +845,7 @@ func TestFigure8Unreliable4B(t *testing.T) {
 
 	for i := 0; i < servers; i++ {
 		if cfg.connected[i] == false {
-			fmt.Println("connected = false, connecting", i)
+			// fmt.Println("connected = false, connecting", i)
 			cfg.connect(i)
 		}
 	}
